@@ -342,6 +342,26 @@
 
       <sc-if value="{{ isClients }}" hint-placeholder-val="{{ false }}">
         <div style="max-width:900px;display:flex;flex-direction:column;gap:var(--space-4);">
+          <div class="card elev-sm" style="gap:var(--space-3);max-width:480px;">
+            <h4 style="margin:0;">Admin login</h4>
+            <div style="display:flex;flex-wrap:wrap;gap:var(--space-3);">
+              <div class="field" style="flex:1;min-width:140px;margin:0;">
+                <label>Username</label>
+                <input class="input" type="text" value="{{ adminUsernameDraft }}" onChange="{{ onAdminUsernameDraftChange }}"/>
+              </div>
+              <div class="field" style="flex:1;min-width:140px;margin:0;">
+                <label>Password</label>
+                <input class="input" type="text" value="{{ adminPasswordDraft }}" onChange="{{ onAdminPasswordDraftChange }}"/>
+              </div>
+            </div>
+            <sc-if value="{{ adminCredentialError }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:12px;color:var(--color-accent);">{{ adminCredentialError }}</div>
+            </sc-if>
+            <div style="display:flex;align-items:center;gap:var(--space-3);">
+              <button class="btn btn-primary" onClick="{{ saveAdminCredentials }}" disabled="{{ saveAdminDisabled }}">Update admin login</button>
+              <div style="font-size:11px;color:var(--color-neutral-600);">Applies to this browser session only until reload — persistent storage isn't wired up yet.</div>
+            </div>
+          </div>
           <div class="card elev-sm" style="gap:var(--space-3);">
             <div style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:var(--space-3);">
               <div class="field" style="flex:1;min-width:160px;margin:0;">
@@ -472,7 +492,6 @@
         <div style="font-size:12px;color:var(--color-accent);">{{ loginError }}</div>
       </sc-if>
       <button class="btn btn-primary btn-block" type="submit">Log in</button>
-      <div style="font-size:11px;color:var(--color-neutral-600);text-align:center;">{{ adminHint }}</div>
     </form>
   </div>
 </sc-if>
@@ -538,6 +557,11 @@ class Component extends DCLogic {
     loginUsername: '',
     loginPassword: '',
     loginError: '',
+    adminUsernameOverride: null,
+    adminPasswordOverride: null,
+    adminUsernameDraft: null,
+    adminPasswordDraft: null,
+    adminCredentialError: '',
   };
 
   get isAdmin() { return !!this.state.session && this.state.session.role === 'admin'; }
@@ -548,6 +572,8 @@ class Component extends DCLogic {
   }
   get calendarMode() { return this.state.calendarMode || this.props.defaultCalendarMode || 'month'; }
   get effectiveClientId() { return this.isAdmin ? this.state.adminViewClientId : (this.state.session ? this.state.session.clientId : null); }
+  get effectiveAdminUsername() { return this.state.adminUsernameOverride || this.props.adminUsername || 'admin'; }
+  get effectiveAdminPassword() { return this.state.adminPasswordOverride || this.props.adminPassword || 'admin123!'; }
 
   setView = (id) => this.setState({ view: id });
   setMonthMode = () => this.setState({ calendarMode: 'month' });
@@ -577,8 +603,8 @@ class Component extends DCLogic {
     const u = this.state.loginUsername.trim();
     const p = this.state.loginPassword;
     if (!u || !p) { this.setState({ loginError: 'Enter a username and password.' }); return; }
-    const adminUser = this.props.adminUsername || 'admin';
-    const adminPass = this.props.adminPassword || 'admin123!';
+    const adminUser = this.effectiveAdminUsername;
+    const adminPass = this.effectiveAdminPassword;
     if (u.toLowerCase() === adminUser.toLowerCase() && p === adminPass) {
       this.setState({ session: { role: 'admin' }, loginUsername: '', loginPassword: '', loginError: '' });
       return;
@@ -597,13 +623,22 @@ class Component extends DCLogic {
   onNewClientNameChange = (e) => this.setState({ newClientName: e.target.value });
   onNewClientUsernameChange = (e) => this.setState({ newClientUsername: e.target.value, newClientError: '' });
   onNewClientPasswordChange = (e) => this.setState({ newClientPassword: e.target.value });
+  onAdminUsernameDraftChange = (e) => this.setState({ adminUsernameDraft: e.target.value, adminCredentialError: '' });
+  onAdminPasswordDraftChange = (e) => this.setState({ adminPasswordDraft: e.target.value, adminCredentialError: '' });
+  saveAdminCredentials = () => {
+    const username = (this.state.adminUsernameDraft !== null ? this.state.adminUsernameDraft : this.effectiveAdminUsername).trim();
+    const password = this.state.adminPasswordDraft !== null ? this.state.adminPasswordDraft : this.effectiveAdminPassword;
+    if (!username || !password) { this.setState({ adminCredentialError: 'Username and password cannot be empty.' }); return; }
+    const taken = this.state.clients.some(c => c.username.toLowerCase() === username.toLowerCase());
+    if (taken) { this.setState({ adminCredentialError: 'That username is already used by a client account.' }); return; }
+    this.setState({ adminUsernameOverride: username, adminPasswordOverride: password, adminUsernameDraft: null, adminPasswordDraft: null, adminCredentialError: '' });
+  };
   addClientClick = () => {
     const name = this.state.newClientName.trim();
     const username = this.state.newClientUsername.trim();
     const password = this.state.newClientPassword;
     if (!name || !username || !password) return;
-    const adminUser = this.props.adminUsername || 'admin';
-    const taken = username.toLowerCase() === adminUser.toLowerCase() || this.state.clients.some(c => c.username.toLowerCase() === username.toLowerCase());
+    const taken = username.toLowerCase() === this.effectiveAdminUsername.toLowerCase() || this.state.clients.some(c => c.username.toLowerCase() === username.toLowerCase());
     if (taken) { this.setState({ newClientError: 'That username is already taken.' }); return; }
     const id = 'c' + Date.now() + Math.random().toString(36).slice(2, 5);
     this.setState(s => ({ clients: s.clients.concat({ id, name, username, password }), adminViewClientId: s.adminViewClientId || id, newClientName: '', newClientUsername: '', newClientPassword: '', newClientError: '' }));
@@ -840,6 +875,8 @@ class Component extends DCLogic {
 
     const roleCaption = isAdmin ? 'Admin: full access' : 'Client: approve, request changes & export';
     const currentAccountLabel = isAdmin ? 'Admin' : (effectiveClient ? effectiveClient.name : 'Client');
+    const adminUsernameDraft = this.state.adminUsernameDraft !== null ? this.state.adminUsernameDraft : this.effectiveAdminUsername;
+    const adminPasswordDraft = this.state.adminPasswordDraft !== null ? this.state.adminPasswordDraft : this.effectiveAdminPassword;
 
     const clientCards = clients.map(c => ({
       id: c.id, name: c.name,
@@ -937,7 +974,13 @@ class Component extends DCLogic {
       onLoginUsernameChange: this.onLoginUsernameChange,
       onLoginPasswordChange: this.onLoginPasswordChange,
       onLoginSubmit: this.onLoginSubmit,
-      adminHint: 'Demo admin login — ' + (this.props.adminUsername || 'admin') + ' / ' + (this.props.adminPassword || 'admin123!'),
+      adminUsernameDraft,
+      onAdminUsernameDraftChange: this.onAdminUsernameDraftChange,
+      adminPasswordDraft,
+      onAdminPasswordDraftChange: this.onAdminPasswordDraftChange,
+      adminCredentialError: this.state.adminCredentialError,
+      saveAdminCredentials: this.saveAdminCredentials,
+      saveAdminDisabled: !adminUsernameDraft.trim() || !adminPasswordDraft,
       changeRequestOpen: !!this.state.changeRequestModal,
       changeRequestNote: this.state.changeRequestModal ? this.state.changeRequestModal.note : '',
       onChangeRequestNoteChange: this.onChangeRequestNoteChange,
