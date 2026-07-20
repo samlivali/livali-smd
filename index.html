@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/nocturne-c2ba2121-c628-44a8-8cd4-d005bf9640c5/styles.css">
+<script src="_ds/nocturne-c2ba2121-c628-44a8-8cd4-d005bf9640c5/_ds_bundle.js"></script>
+<script src="https://unpkg.com/@phosphor-icons/web"></script>
+<style>
+  html,body{margin:0;height:100%;}
+  /* Livali brand override — red / white / black on the Nocturne structure */
+  :root{
+    --color-bg:#ffffff;
+    --color-surface:#f5f5f6;
+    --color-text:#17171a;
+    --color-divider: rgba(23,23,26,0.14);
+    --color-accent:#e0202c;
+    --color-accent-100:#7a1015;
+    --color-accent-200:#9c1319;
+    --color-accent-300:#c2181f;
+    --color-accent-400:#d81b24;
+    --color-accent-500:#e0202c;
+    --color-accent-600:#ef555c;
+    --color-accent-700:#f68b90;
+    --color-accent-800:#fbdfe0;
+    --color-accent-900:#fdf0f0;
+    --color-accent-2-100:#7a1015;
+    --color-accent-2-800:#fbdfe0;
+    --color-accent-2-900:#fdf0f0;
+    --shadow-sm:0 0 0 1px rgba(23,23,26,0.10);
+    --shadow-md:0 0 0 1px rgba(23,23,26,0.10), 0 6px 18px rgba(23,23,26,0.10);
+    --shadow-lg:0 0 0 1px rgba(23,23,26,0.14), 0 16px 40px rgba(23,23,26,0.16);
+  }
+  a{color:var(--color-accent);}
+  a:hover{color:var(--color-accent-400);}
+  ::-webkit-scrollbar{width:9px;height:9px;}
+  ::-webkit-scrollbar-thumb{background:var(--color-neutral-300);border-radius:6px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  @keyframes livali-spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+  .sidebar-tab:hover{background:color-mix(in srgb, var(--color-text) 6%, transparent)!important;}
+  .sidebar-tab[aria-current="page"]:hover{background:var(--color-accent-800)!important;}
+  .print-only{display:none;}
+  @media print{
+    .no-print{display:none!important;}
+    .print-only{display:block!important;}
+    *{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    html,body{height:auto!important;background:var(--color-bg)!important;}
+    .app-root{display:block!important;height:auto!important;overflow:visible!important;}
+    .app-main{overflow:visible!important;height:auto!important;}
+  }
+</style>
+</helmet>
+<sc-if value="{{ isLoggedIn }}" hint-placeholder-val="{{ true }}">
+<div class="app-root" style="display:flex;height:100vh;background:var(--color-bg);color:var(--color-text);font-family:var(--font-body);overflow:hidden;">
+
+  <aside class="no-print" style="width:220px;flex:none;display:flex;flex-direction:column;gap:var(--space-6);padding:var(--space-4) var(--space-3);border-right:1px solid var(--color-divider);">
+    <div style="padding:0 var(--space-2);">
+      <img src="assets/livali-logo-cropped.png" alt="Livali" style="height:22px;width:auto;display:block;"/>
+      <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-neutral-600);margin-top:6px;">Social Media Dashboard</div>
+    </div>
+    <nav style="display:flex;flex-direction:column;gap:2px;">
+      <sc-for list="{{ viewTabs }}" as="tab" hint-placeholder-count="4">
+        <div class="sidebar-tab" role="button" tabIndex="0" aria-current="{{ tab.ariaCurrent }}" onClick="{{ tab.onClick }}" onKeyDown="{{ tab.onKeyDown }}" style="{{ tab.rowStyle }}">
+          <i class="ph {{ tab.icon }}" style="font-size:17px;"></i>
+          <span>{{ tab.label }}</span>
+        </div>
+      </sc-for>
+    </nav>
+    <div style="margin-top:auto;display:flex;flex-direction:column;gap:8px;">
+      <div class="hr" style="margin:0;"></div>
+      <div style="padding:0 var(--space-2);">
+        <div style="font-size:13px;font-weight:500;">{{ currentAccountLabel }}</div>
+        <div style="font-size:11px;color:var(--color-neutral-600);">{{ roleCaption }}</div>
+      </div>
+      <button class="btn btn-secondary no-print" style="margin:0 var(--space-2);" onClick="{{ logout }}"><i class="ph ph-sign-out"></i>Log out</button>
+    </div>
+  </aside>
+
+  <main class="app-main" style="flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden;">
+    <header class="no-print" style="display:flex;align-items:center;gap:var(--space-4);padding:var(--space-4);border-bottom:1px solid var(--color-divider);flex-wrap:wrap;row-gap:10px;">
+      <div style="flex:none;">
+        <h2 style="margin:0;font-size:21px;">{{ viewTitle }}</h2>
+        <div style="font-size:12px;color:var(--color-neutral-600);">{{ viewSubtitle }}</div>
+      </div>
+      <sc-if value="{{ showClientSwitcher }}" hint-placeholder-val="{{ false }}">
+        <select class="input" style="max-width:180px;" value="{{ clientSwitcherValue }}" onChange="{{ onClientSwitch }}">
+          <sc-for list="{{ clientSwitcherOptions }}" as="opt" hint-placeholder-count="2">
+            <option value="{{ opt.value }}">{{ opt.label }}</option>
+          </sc-for>
+        </select>
+      </sc-if>
+      <sc-if value="{{ showPeriodNav }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;align-items:center;gap:6px;flex:none;">
+          <button class="btn btn-icon btn-secondary" aria-label="Previous period" onClick="{{ goPrevPeriod }}"><i class="ph ph-caret-left"></i></button>
+          <div style="font-size:13px;min-width:150px;text-align:center;">{{ periodLabel }}</div>
+          <button class="btn btn-icon btn-secondary" aria-label="Next period" onClick="{{ goNextPeriod }}"><i class="ph ph-caret-right"></i></button>
+          <button class="btn btn-secondary" onClick="{{ goToday }}">Today</button>
+          <sc-if value="{{ showModeToggle }}" hint-placeholder-val="{{ false }}">
+            <div class="seg" style="margin-left:6px;">
+              <label class="seg-opt"><input type="radio" name="calmode" checked="{{ isMonthMode }}" onChange="{{ setMonthMode }}"/>Month</label>
+              <label class="seg-opt"><input type="radio" name="calmode" checked="{{ isWeekMode }}" onChange="{{ setWeekMode }}"/>Week</label>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+      <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <sc-if value="{{ showPlatformFilter }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;gap:5px;flex-wrap:wrap;">
+            <sc-for list="{{ platformChips }}" as="chip" hint-placeholder-count="6">
+              <button class="btn btn-icon" title="{{ chip.label }}" style="{{ chip.style }}" onClick="{{ chip.onClick }}">
+                <i class="ph {{ chip.icon }}" style="font-size:14px;"></i>
+              </button>
+            </sc-for>
+          </div>
+        </sc-if>
+        <button class="btn btn-secondary" onClick="{{ exportPdf }}"><i class="ph ph-export"></i>Export</button>
+        <sc-if value="{{ showNewPost }}" hint-placeholder-val="{{ false }}">
+          <button class="btn btn-primary" onClick="{{ openNew }}"><i class="ph ph-plus"></i>New Post</button>
+        </sc-if>
+      </div>
+    </header>
+
+    <div style="flex:1;overflow:auto;padding:var(--space-4);">
+      <div class="print-only" style="margin-bottom:var(--space-4);">
+        <img src="assets/livali-logo-cropped.png" alt="Livali" style="height:24px;width:auto;display:block;margin-bottom:8px;"/>
+        <div style="font-size:15px;">{{ viewTitle }} — {{ viewSubtitle }}</div>
+        <div style="font-size:13px;color:var(--color-neutral-600);">{{ periodLabel }}</div>
+        <div class="hr"></div>
+      </div>
+
+      <sc-if value="{{ needsClientSetup }}" hint-placeholder-val="{{ false }}">
+        <div class="card elev-sm" style="max-width:480px;gap:var(--space-3);">
+          <h3 style="margin:0;">Add your first client</h3>
+          <p style="margin:0;font-size:13px;color:var(--color-neutral-600);">Livali SMD manages each client's calendar separately. Add a client account to start planning posts.</p>
+          <button class="btn btn-primary" style="align-self:flex-start;" onClick="{{ goToClients }}"><i class="ph ph-plus"></i>Add a client</button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isOverview }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;gap:var(--space-6);max-width:1100px;">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:var(--space-3);">
+            <sc-for list="{{ statCards }}" as="card" hint-placeholder-count="5">
+              <div class="card elev-sm">
+                <div class="card-kicker">{{ card.label }}</div>
+                <div style="font-family:var(--font-heading);font-size:30px;font-weight:500;">{{ card.count }}</div>
+                <div class="card-meta"><i class="ph {{ card.icon }}"></i>{{ card.hint }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div class="card elev-sm" style="gap:var(--space-3);">
+            <h3 style="margin:0;">Upcoming</h3>
+            <sc-if value="{{ hasUpcoming }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;flex-direction:column;">
+                <sc-for list="{{ upcomingPosts }}" as="p" hint-placeholder-count="3">
+                  <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--color-divider);">
+                    <i class="ph {{ p.icon }}" style="font-size:18px;color:var(--color-neutral-500);flex:none;"></i>
+                    <div style="min-width:0;flex:1;" onClick="{{ p.onEdit }}">
+                      <div style="font-size:14px;">{{ p.title }}</div>
+                      <div style="font-size:12px;color:var(--color-neutral-600);">{{ p.dateLabel }} · {{ p.time12 }} · {{ p.platformLabel }}</div>
+                      <sc-if value="{{ p.hasClientNote }}" hint-placeholder-val="{{ false }}">
+                        <div style="font-size:12px;color:var(--color-accent);display:flex;gap:4px;align-items:flex-start;margin-top:2px;"><i class="ph ph-chat-centered-text" style="flex:none;margin-top:1px;"></i><span>{{ p.clientNote }}</span></div>
+                      </sc-if>
+                    </div>
+                    <span class="tag {{ p.statusTagClass }}" style="{{ p.statusStyle }}"><i class="ph {{ p.statusIcon }}"></i> {{ p.statusLabel }}</span>
+                    <sc-if value="{{ p.canApprove }}" hint-placeholder-val="{{ false }}">
+                      <button class="btn btn-ghost no-print" onClick="{{ p.onApprove }}">Approve</button>
+                    </sc-if>
+                    <sc-if value="{{ p.canRequestChanges }}" hint-placeholder-val="{{ false }}">
+                      <button class="btn btn-ghost no-print" onClick="{{ p.onRequestChanges }}">Request changes</button>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+            <sc-if value="{{ noUpcoming }}" hint-placeholder-val="{{ false }}">
+              <div class="text-muted" style="font-size:13px;">Nothing scheduled yet.</div>
+            </sc-if>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isCalendarMonth }}" hint-placeholder-val="{{ false }}">
+        <div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--color-divider);border:1px solid var(--color-divider);border-radius:var(--radius-md) var(--radius-md) 0 0;overflow:hidden;">
+            <sc-for list="{{ weekdayLabels }}" as="wd" hint-placeholder-count="7">
+              <div style="background:var(--color-surface);padding:8px 10px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-neutral-600);">{{ wd }}</div>
+            </sc-for>
+          </div>
+          <sc-for list="{{ monthWeeks }}" as="week" hint-placeholder-count="5">
+            <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--color-divider);border-left:1px solid var(--color-divider);border-right:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider);">
+              <sc-for list="{{ week.days }}" as="day" hint-placeholder-count="7">
+                <div style="{{ day.cellStyle }}">
+                  <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <span style="{{ day.dayNumStyle }}">{{ day.dayNum }}</span>
+                    <sc-if value="{{ day.showAdd }}" hint-placeholder-val="{{ false }}">
+                      <button class="btn btn-icon no-print" aria-label="Add post" style="width:19px;height:19px;" onClick="{{ day.onAdd }}"><i class="ph ph-plus" style="font-size:10px;"></i></button>
+                    </sc-if>
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:3px;overflow:auto;max-height:76px;">
+                    <sc-for list="{{ day.posts }}" as="post" hint-placeholder-count="1">
+                      <div onClick="{{ post.onEdit }}" style="{{ post.chipStyle }}">
+                        <i class="ph {{ post.icon }}" style="font-size:9px;"></i>{{ post.time12 }} {{ post.title }}
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isCalendarWeek }}" hint-placeholder-val="{{ false }}">
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:var(--space-3);align-items:start;">
+          <sc-for list="{{ weekCells }}" as="day" hint-placeholder-count="7">
+            <div class="card elev-sm" style="{{ day.cardStyle }} min-height:180px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                  <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--color-neutral-600);">{{ day.weekdayLabel }}</div>
+                  <div style="font-family:var(--font-heading);font-size:17px;">{{ day.dayLabel }}</div>
+                </div>
+                <sc-if value="{{ day.showAdd }}" hint-placeholder-val="{{ false }}">
+                  <button class="btn btn-icon btn-secondary no-print" aria-label="Add post" onClick="{{ day.onAdd }}"><i class="ph ph-plus"></i></button>
+                </sc-if>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px;">
+                <sc-for list="{{ day.posts }}" as="post" hint-placeholder-count="1">
+                  <div style="border:1px solid var(--color-divider);border-radius:var(--radius-sm);padding:6px 8px;{{ post.cursorStyle }}" onClick="{{ post.onEdit }}">
+                    <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--color-neutral-600);">
+                      <i class="ph {{ post.icon }}"></i>{{ post.time12 }}
+                    </div>
+                    <div style="font-size:13px;margin:2px 0 4px;">{{ post.title }}</div>
+                    <sc-if value="{{ post.hasClientNote }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size:11px;color:var(--color-accent);display:flex;gap:4px;align-items:flex-start;margin-bottom:4px;"><i class="ph ph-chat-centered-text" style="flex:none;margin-top:1px;"></i><span>{{ post.clientNote }}</span></div>
+                    </sc-if>
+                    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                      <span class="tag {{ post.statusTagClass }}" style="{{ post.statusStyle }}"><i class="ph {{ post.statusIcon }}"></i> {{ post.statusLabel }}</span>
+                      <sc-if value="{{ post.canApprove }}" hint-placeholder-val="{{ false }}">
+                        <button class="btn btn-ghost no-print" style="font-size:11px;padding:0;" onClick="{{ post.onApprove }}">Approve</button>
+                      </sc-if>
+                      <sc-if value="{{ post.canRequestChanges }}" hint-placeholder-val="{{ false }}">
+                        <button class="btn btn-ghost no-print" style="font-size:11px;padding:0;" onClick="{{ post.onRequestChanges }}">Request changes</button>
+                      </sc-if>
+                    </div>
+                  </div>
+                </sc-for>
+                <sc-if value="{{ day.noPosts }}" hint-placeholder-val="{{ false }}">
+                  <div style="font-size:12px;color:var(--color-neutral-500);">No posts</div>
+                </sc-if>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isList }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:var(--space-3);">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <sc-for list="{{ statusChips }}" as="chip" hint-placeholder-count="4">
+              <button class="tag {{ chip.class }}" style="{{ chip.style }}cursor:pointer;border:none;" onClick="{{ chip.onClick }}">{{ chip.label }}</button>
+            </sc-for>
+          </div>
+          <sc-if value="{{ hasListPosts }}" hint-placeholder-val="{{ true }}">
+            <table class="table">
+              <thead><tr><th>Date</th><th>Time</th><th>Platform</th><th>Title</th><th>Pillar</th><th>Assignee</th><th>Status</th><th></th></tr></thead>
+              <tbody>
+                <sc-for list="{{ listPosts }}" as="p" hint-placeholder-count="5">
+                  <tr>
+                    <td>{{ p.dateLabel }}</td>
+                    <td>{{ p.time12 }}</td>
+                    <td style="white-space:nowrap;"><i class="ph {{ p.icon }}"></i> {{ p.platformLabel }}</td>
+                    <td onClick="{{ p.onEdit }}" style="{{ p.cursorStyle }}max-width:220px;">{{ p.title }}</td>
+                    <td>{{ p.pillarLabel }}</td>
+                    <td>{{ p.assigneeLabel }}</td>
+                    <td>
+                      <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;">
+                        <span class="tag {{ p.statusTagClass }}" style="{{ p.statusStyle }}"><i class="ph {{ p.statusIcon }}"></i> {{ p.statusLabel }}</span>
+                        <sc-if value="{{ p.canApprove }}" hint-placeholder-val="{{ false }}">
+                          <button class="btn btn-ghost no-print" style="font-size:11px;padding:0;" onClick="{{ p.onApprove }}">Approve</button>
+                        </sc-if>
+                        <sc-if value="{{ p.canRequestChanges }}" hint-placeholder-val="{{ false }}">
+                          <button class="btn btn-ghost no-print" style="font-size:11px;padding:0;" onClick="{{ p.onRequestChanges }}">Request changes</button>
+                        </sc-if>
+                        <sc-if value="{{ p.hasClientNote }}" hint-placeholder-val="{{ false }}">
+                          <div style="font-size:11px;color:var(--color-accent);display:flex;gap:4px;align-items:flex-start;max-width:200px;"><i class="ph ph-chat-centered-text" style="flex:none;margin-top:1px;"></i><span>{{ p.clientNote }}</span></div>
+                        </sc-if>
+                        <sc-if value="{{ p.canCheck }}" hint-placeholder-val="{{ false }}">
+                          <button class="btn btn-ghost no-print" style="font-size:11px;padding:0;" onClick="{{ p.onCheck }}">Check online</button>
+                        </sc-if>
+                        <sc-if value="{{ p.isChecking }}" hint-placeholder-val="{{ false }}">
+                          <span style="font-size:11px;color:var(--color-neutral-500);display:flex;align-items:center;gap:4px;"><i class="ph ph-arrows-clockwise" style="animation:livali-spin 0.9s linear infinite;"></i>Checking…</span>
+                        </sc-if>
+                        <sc-if value="{{ p.hasCheckedLabel }}" hint-placeholder-val="{{ false }}">
+                          <span style="font-size:11px;color:var(--color-neutral-500);">Verified {{ p.checkedLabel }}</span>
+                        </sc-if>
+                      </div>
+                    </td>
+                    <td style="white-space:nowrap;">
+                      <sc-if value="{{ p.canEdit }}" hint-placeholder-val="{{ false }}">
+                        <button class="btn btn-icon btn-ghost no-print" aria-label="Edit post" onClick="{{ p.onEdit }}"><i class="ph ph-pencil-simple"></i></button>
+                        <button class="btn btn-icon btn-ghost no-print" aria-label="Delete post" onClick="{{ p.onDelete }}"><i class="ph ph-trash"></i></button>
+                      </sc-if>
+                    </td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </sc-if>
+          <sc-if value="{{ noListPosts }}" hint-placeholder-val="{{ false }}">
+            <div class="card">No posts match the current filters.</div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isStrategy }}" hint-placeholder-val="{{ false }}">
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:var(--space-4);align-items:start;max-width:1100px;">
+          <div class="card elev-sm" style="gap:var(--space-3);">
+            <h3 style="margin:0;">Goals &amp; themes — {{ periodLabel }}</h3>
+            <textarea class="input no-print" rows="9" value="{{ strategyText }}" onChange="{{ onStrategyChange }}" placeholder="What's the focus this period? Campaign goals, themes, key dates..."></textarea>
+            <div class="print-only" style="font-size:14px;white-space:pre-wrap;">{{ strategyText }}</div>
+          </div>
+          <div class="card elev-sm" style="gap:var(--space-2);">
+            <h4 style="margin:0;">Content pillars this period</h4>
+            <sc-if value="{{ hasPillars }}" hint-placeholder-val="{{ true }}">
+              <sc-for list="{{ pillarBreakdown }}" as="pil" hint-placeholder-count="3">
+                <div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-bottom:1px solid var(--color-divider);">
+                  <span>{{ pil.name }}</span><span class="text-muted">{{ pil.count }}</span>
+                </div>
+              </sc-for>
+            </sc-if>
+            <sc-if value="{{ noPillars }}" hint-placeholder-val="{{ false }}">
+              <div class="text-muted" style="font-size:13px;">No posts planned yet this period.</div>
+            </sc-if>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isClients }}" hint-placeholder-val="{{ false }}">
+        <div style="max-width:900px;display:flex;flex-direction:column;gap:var(--space-4);">
+          <div class="card elev-sm" style="gap:var(--space-3);">
+            <div style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:var(--space-3);">
+              <div class="field" style="flex:1;min-width:160px;margin:0;">
+                <label>New client name</label>
+                <input class="input" type="text" value="{{ newClientName }}" onChange="{{ onNewClientNameChange }}" placeholder="e.g. Acme Co."/>
+              </div>
+              <div class="field" style="flex:1;min-width:140px;margin:0;">
+                <label>Username</label>
+                <input class="input" type="text" value="{{ newClientUsername }}" onChange="{{ onNewClientUsernameChange }}" placeholder="e.g. acme"/>
+              </div>
+              <div class="field" style="flex:1;min-width:140px;margin:0;">
+                <label>Password</label>
+                <input class="input" type="text" value="{{ newClientPassword }}" onChange="{{ onNewClientPasswordChange }}" placeholder="Temporary password"/>
+              </div>
+              <button class="btn btn-primary" onClick="{{ addClientClick }}" disabled="{{ addClientDisabled }}"><i class="ph ph-plus"></i>Add client</button>
+            </div>
+            <sc-if value="{{ newClientError }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:12px;color:var(--color-accent);">{{ newClientError }}</div>
+            </sc-if>
+            <div style="font-size:11px;color:var(--color-neutral-600);">Share the username and password with your client so they can log in to their own account.</div>
+          </div>
+          <sc-if value="{{ hasClients }}" hint-placeholder-val="{{ false }}">
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:var(--space-3);">
+              <sc-for list="{{ clientCards }}" as="c" hint-placeholder-count="3">
+                <div class="card elev-sm">
+                  <div class="card-title">{{ c.name }}</div>
+                  <div class="card-meta"><i class="ph ph-calendar-check"></i>{{ c.postCountLabel }}</div>
+                  <div class="card-meta"><i class="ph ph-key"></i>{{ c.credentialLabel }}</div>
+                  <div style="display:flex;gap:6px;margin-top:6px;">
+                    <button class="btn btn-secondary" style="flex:1;" onClick="{{ c.onManage }}">Manage</button>
+                    <button class="btn btn-icon btn-ghost" aria-label="Remove client" onClick="{{ c.onRemove }}"><i class="ph ph-trash"></i></button>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ noClients }}" hint-placeholder-val="{{ true }}">
+            <div class="text-muted" style="font-size:13px;">No client accounts yet — add one above.</div>
+          </sc-if>
+        </div>
+      </sc-if>
+    </div>
+  </main>
+
+  <sc-if value="{{ modalOpen }}" hint-placeholder-val="{{ false }}">
+    <div class="dialog-backdrop no-print" onClick="{{ closeModal }}">
+      <div class="dialog" onClick="{{ stopProp }}" style="width:min(540px,100%);">
+        <div class="dialog-title">{{ modalTitle }}</div>
+        <div style="display:flex;flex-direction:column;gap:var(--space-3);">
+          <div class="field">
+            <label>Platform</label>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <sc-for list="{{ platformOptions }}" as="opt" hint-placeholder-count="6">
+                <button class="btn" style="{{ opt.style }}" onClick="{{ opt.onClick }}"><i class="ph {{ opt.icon }}"></i>{{ opt.label }}</button>
+              </sc-for>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);">
+            <div class="field"><label>Date</label><input class="input" type="date" value="{{ draftDate }}" onChange="{{ onDraftDate }}"/></div>
+            <div class="field"><label>Time</label><input class="input" type="time" value="{{ draftTime }}" onChange="{{ onDraftTime }}"/></div>
+          </div>
+          <div class="field"><label>Title</label><input class="input" type="text" value="{{ draftTitle }}" onChange="{{ onDraftTitle }}" placeholder="Post title or caption summary"/></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);">
+            <div class="field">
+              <label>Content pillar</label>
+              <input class="input" list="pillar-suggestions" type="text" value="{{ draftPillar }}" onChange="{{ onDraftPillar }}" placeholder="e.g. Promotional"/>
+            </div>
+            <div class="field"><label>Assignee</label><input class="input" type="text" value="{{ draftAssignee }}" onChange="{{ onDraftAssignee }}" placeholder="Who's on it"/></div>
+          </div>
+          <div class="field">
+            <label>Status</label>
+            <div class="seg">
+              <sc-for list="{{ statusOptions }}" as="s" hint-placeholder-count="4">
+                <label class="seg-opt">
+                  <input type="radio" name="draftstatus" checked="{{ s.active }}" onChange="{{ s.onClick }}"/>{{ s.label }}
+                </label>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+        <div class="dialog-actions">
+          <sc-if value="{{ isEditingExisting }}" hint-placeholder-val="{{ false }}">
+            <button class="btn btn-secondary" style="margin-right:auto;" onClick="{{ deleteDraft }}"><i class="ph ph-trash"></i>Delete</button>
+          </sc-if>
+          <button class="btn btn-secondary" onClick="{{ closeModal }}">Cancel</button>
+          <button class="btn btn-primary" onClick="{{ saveDraft }}" disabled="{{ saveDisabled }}">Save</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+  <sc-if value="{{ changeRequestOpen }}" hint-placeholder-val="{{ false }}">
+    <div class="dialog-backdrop no-print" onClick="{{ closeChangeRequest }}">
+      <div class="dialog" onClick="{{ stopProp }}" style="width:min(440px,100%);">
+        <div class="dialog-title">Request changes</div>
+        <div class="field" style="margin:0;">
+          <label>What should change?</label>
+          <textarea class="input" rows="5" value="{{ changeRequestNote }}" onChange="{{ onChangeRequestNoteChange }}" placeholder="e.g. Please swap the photo and shorten the caption"></textarea>
+        </div>
+        <div class="dialog-actions">
+          <button class="btn btn-secondary" onClick="{{ closeChangeRequest }}">Cancel</button>
+          <button class="btn btn-primary" onClick="{{ submitChangeRequest }}" disabled="{{ changeRequestSaveDisabled }}">Send</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+  <datalist id="pillar-suggestions">
+    <sc-for list="{{ pillarSuggestions }}" as="ps" hint-placeholder-count="6"><option value="{{ ps }}"></option></sc-for>
+  </datalist>
+</div>
+</sc-if>
+
+<sc-if value="{{ isLoggedOut }}" hint-placeholder-val="{{ false }}">
+  <div style="display:flex;align-items:center;justify-content:center;height:100vh;background:var(--color-surface);">
+    <form onSubmit="{{ onLoginSubmit }}" class="card elev-md" style="width:340px;gap:var(--space-4);">
+      <div style="text-align:center;">
+        <img src="assets/livali-logo-cropped.png" alt="Livali" style="height:26px;width:auto;display:block;margin:0 auto 6px;"/>
+        <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-neutral-600);">Social Media Dashboard</div>
+      </div>
+      <div class="field" style="margin:0;">
+        <label>Username</label>
+        <input class="input" type="text" value="{{ loginUsername }}" onChange="{{ onLoginUsernameChange }}" placeholder="Username"/>
+      </div>
+      <div class="field" style="margin:0;">
+        <label>Password</label>
+        <input class="input" type="password" value="{{ loginPassword }}" onChange="{{ onLoginPasswordChange }}" placeholder="Password"/>
+      </div>
+      <sc-if value="{{ loginError }}" hint-placeholder-val="{{ false }}">
+        <div style="font-size:12px;color:var(--color-accent);">{{ loginError }}</div>
+      </sc-if>
+      <button class="btn btn-primary btn-block" type="submit">Log in</button>
+      <div style="font-size:11px;color:var(--color-neutral-600);text-align:center;">{{ adminHint }}</div>
+    </form>
+  </div>
+</sc-if>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 1440, &quot;height&quot;: 900}, &quot;defaultView&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;default&quot;: &quot;calendar&quot;, &quot;options&quot;: [&quot;overview&quot;, &quot;calendar&quot;, &quot;list&quot;, &quot;strategy&quot;], &quot;tsType&quot;: &quot;string&quot;}, &quot;defaultCalendarMode&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;default&quot;: &quot;month&quot;, &quot;options&quot;: [&quot;month&quot;, &quot;week&quot;], &quot;tsType&quot;: &quot;string&quot;}, &quot;checkSuccessRate&quot;: {&quot;editor&quot;: &quot;range&quot;, &quot;default&quot;: 75, &quot;min&quot;: 0, &quot;max&quot;: 100, &quot;step&quot;: 5, &quot;unit&quot;: &quot;%&quot;, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;Online check simulation&quot;}, &quot;adminUsername&quot;: {&quot;editor&quot;: &quot;string&quot;, &quot;default&quot;: &quot;admin&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Login credentials&quot;}, &quot;adminPassword&quot;: {&quot;editor&quot;: &quot;string&quot;, &quot;default&quot;: &quot;admin123!&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Login credentials&quot;}}">
+const PLATFORM_META = {
+  facebook: { label: 'Facebook', icon: 'ph-facebook-logo' },
+  instagram: { label: 'Instagram', icon: 'ph-instagram-logo' },
+  twitter: { label: 'Twitter/X', icon: 'ph-x-logo' },
+  linkedin: { label: 'LinkedIn', icon: 'ph-linkedin-logo' },
+  tiktok: { label: 'TikTok', icon: 'ph-tiktok-logo' },
+  youtube: { label: 'YouTube', icon: 'ph-youtube-logo' },
+};
+const PLATFORM_ORDER = ['facebook', 'instagram', 'twitter', 'linkedin', 'tiktok', 'youtube'];
+const STATUS_META = {
+  'needs-approval': { label: 'Needs Approval', icon: 'ph-hourglass', tagClass: 'tag', extraStyle: { border: '1px solid var(--color-text)', color: 'var(--color-text)' } },
+  'changes-requested': { label: 'Changes Requested', icon: 'ph-chat-centered-text', tagClass: 'tag-outline', extraStyle: {} },
+  'scheduled': { label: 'Scheduled', icon: 'ph-clock-countdown', tagClass: 'tag-neutral', extraStyle: {} },
+  'posted': { label: 'Posted', icon: 'ph-check-circle', tagClass: 'tag-accent', extraStyle: {} },
+  'missed': { label: 'Missed', icon: 'ph-x-circle', tagClass: 'tag-outline', extraStyle: {} },
+};
+const STATUS_ORDER = ['needs-approval', 'changes-requested', 'scheduled', 'posted', 'missed'];
+const PILLAR_SUGGESTIONS = ['Promotional', 'Educational', 'Community', 'Product Update', 'Behind the Scenes', 'UGC', 'Announcement'];
+const WEEKDAY_LABELS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+
+function pad(n) { return String(n).padStart(2, '0'); }
+function toISO(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+function isSameDay(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
+function addDays(d, n) { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
+function startOfWeek(d) { const r = new Date(d); r.setDate(r.getDate() - r.getDay()); r.setHours(0, 0, 0, 0); return r; }
+function time12(t) {
+  if (!t) return '';
+  const [h, m] = t.split(':').map(Number);
+  const period = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return h12 + ':' + pad(m) + ' ' + period;
+}
+function dateLabel(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+class Component extends DCLogic {
+  state = {
+    view: null,
+    calendarMode: null,
+    viewDate: new Date(),
+    posts: [],
+    clients: [],
+    session: null,
+    adminViewClientId: null,
+    platformActive: PLATFORM_ORDER.slice(),
+    statusActive: STATUS_ORDER.slice(),
+    modal: null,
+    changeRequestModal: null,
+    checkingId: null,
+    strategyNotes: {},
+    newClientName: '',
+    newClientUsername: '',
+    newClientPassword: '',
+    newClientError: '',
+    loginUsername: '',
+    loginPassword: '',
+    loginError: '',
+  };
+
+  get isAdmin() { return !!this.state.session && this.state.session.role === 'admin'; }
+  get view() {
+    const v = this.state.view || this.props.defaultView || 'calendar';
+    if (!this.isAdmin && (v === 'strategy' || v === 'clients')) return 'overview';
+    return v;
+  }
+  get calendarMode() { return this.state.calendarMode || this.props.defaultCalendarMode || 'month'; }
+  get effectiveClientId() { return this.isAdmin ? this.state.adminViewClientId : (this.state.session ? this.state.session.clientId : null); }
+
+  setView = (id) => this.setState({ view: id });
+  setMonthMode = () => this.setState({ calendarMode: 'month' });
+  setWeekMode = () => this.setState({ calendarMode: 'week' });
+  goToday = () => this.setState({ viewDate: new Date() });
+  goPrevPeriod = () => this.navPeriod(-1);
+  goNextPeriod = () => this.navPeriod(1);
+  navPeriod(dir) {
+    const cur = this.state.viewDate;
+    if (this.calendarMode === 'month') this.setState({ viewDate: new Date(cur.getFullYear(), cur.getMonth() + dir, 1) });
+    else this.setState({ viewDate: addDays(cur, dir * 7) });
+  }
+  togglePlatform = (id) => {
+    const cur = this.state.platformActive;
+    this.setState({ platformActive: cur.includes(id) ? cur.filter(p => p !== id) : cur.concat(id) });
+  };
+  toggleStatus = (id) => {
+    const cur = this.state.statusActive;
+    this.setState({ statusActive: cur.includes(id) ? cur.filter(s => s !== id) : cur.concat(id) });
+  };
+  stopProp = (e) => e.stopPropagation();
+
+  onLoginUsernameChange = (e) => this.setState({ loginUsername: e.target.value });
+  onLoginPasswordChange = (e) => this.setState({ loginPassword: e.target.value });
+  onLoginSubmit = (e) => { e.preventDefault(); this.login(); };
+  login = () => {
+    const u = this.state.loginUsername.trim();
+    const p = this.state.loginPassword;
+    if (!u || !p) { this.setState({ loginError: 'Enter a username and password.' }); return; }
+    const adminUser = this.props.adminUsername || 'admin';
+    const adminPass = this.props.adminPassword || 'admin123!';
+    if (u.toLowerCase() === adminUser.toLowerCase() && p === adminPass) {
+      this.setState({ session: { role: 'admin' }, loginUsername: '', loginPassword: '', loginError: '' });
+      return;
+    }
+    const client = this.state.clients.find(c => c.username && c.username.toLowerCase() === u.toLowerCase() && c.password === p);
+    if (client) {
+      this.setState({ session: { role: 'client', clientId: client.id }, loginUsername: '', loginPassword: '', loginError: '' });
+      return;
+    }
+    this.setState({ loginError: 'Incorrect username or password.' });
+  };
+  logout = () => this.setState({ session: null, loginUsername: '', loginPassword: '', loginError: '' });
+  setAdminViewClient = (id) => this.setState({ adminViewClientId: id, view: 'overview' });
+  onClientSwitch = (e) => this.setAdminViewClient(e.target.value);
+  goToClients = () => this.setState({ view: 'clients' });
+  onNewClientNameChange = (e) => this.setState({ newClientName: e.target.value });
+  onNewClientUsernameChange = (e) => this.setState({ newClientUsername: e.target.value, newClientError: '' });
+  onNewClientPasswordChange = (e) => this.setState({ newClientPassword: e.target.value });
+  addClientClick = () => {
+    const name = this.state.newClientName.trim();
+    const username = this.state.newClientUsername.trim();
+    const password = this.state.newClientPassword;
+    if (!name || !username || !password) return;
+    const adminUser = this.props.adminUsername || 'admin';
+    const taken = username.toLowerCase() === adminUser.toLowerCase() || this.state.clients.some(c => c.username.toLowerCase() === username.toLowerCase());
+    if (taken) { this.setState({ newClientError: 'That username is already taken.' }); return; }
+    const id = 'c' + Date.now() + Math.random().toString(36).slice(2, 5);
+    this.setState(s => ({ clients: s.clients.concat({ id, name, username, password }), adminViewClientId: s.adminViewClientId || id, newClientName: '', newClientUsername: '', newClientPassword: '', newClientError: '' }));
+  };
+  removeClient = (id) => this.setState(s => {
+    const clients = s.clients.filter(c => c.id !== id);
+    return {
+      clients,
+      posts: s.posts.filter(p => p.clientId !== id),
+      adminViewClientId: s.adminViewClientId === id ? (clients[0] ? clients[0].id : null) : s.adminViewClientId,
+    };
+  });
+
+  openNew = (dateISO) => {
+    if (!this.isAdmin || !this.effectiveClientId) return;
+    const d = typeof dateISO === 'string' ? dateISO : toISO(this.state.viewDate);
+    this.setState({ modal: { editingId: null, clientId: this.effectiveClientId, platform: 'facebook', date: d, time: '09:00', title: '', pillar: '', assignee: '', status: 'needs-approval' } });
+  };
+  openEdit = (post) => {
+    if (!this.isAdmin) return;
+    this.setState({ modal: { editingId: post.id, clientId: post.clientId, platform: post.platform, date: post.date, time: post.time, title: post.title, pillar: post.pillar || '', assignee: post.assignee || '', status: post.status } });
+  };
+  closeModal = () => this.setState({ modal: null });
+  setDraftField = (field, val) => this.setState(s => ({ modal: { ...s.modal, [field]: val } }));
+  saveDraft = () => {
+    const m = this.state.modal;
+    if (!m || !m.title.trim()) return;
+    if (m.editingId) this.setState(s => ({ posts: s.posts.map(p => p.id === m.editingId ? { ...p, ...m } : p), modal: null }));
+    else {
+      const id = 'p' + Date.now() + Math.random().toString(36).slice(2, 6);
+      this.setState(s => ({ posts: s.posts.concat({ id, ...m, checkedAt: null }), modal: null }));
+    }
+  };
+  deleteDraft = () => {
+    const m = this.state.modal;
+    if (!m || !m.editingId) return;
+    this.setState(s => ({ posts: s.posts.filter(p => p.id !== m.editingId), modal: null }));
+  };
+  deletePost = (id) => { if (this.isAdmin) this.setState(s => ({ posts: s.posts.filter(p => p.id !== id) })); };
+  approvePost = (id) => this.setState(s => ({ posts: s.posts.map(p => p.id === id ? { ...p, status: 'scheduled' } : p) }));
+  openChangeRequest = (id) => this.setState({ changeRequestModal: { postId: id, note: '' } });
+  onChangeRequestNoteChange = (e) => this.setState(s => ({ changeRequestModal: { ...s.changeRequestModal, note: e.target.value } }));
+  closeChangeRequest = () => this.setState({ changeRequestModal: null });
+  submitChangeRequest = () => {
+    const m = this.state.changeRequestModal;
+    if (!m || !m.note.trim()) return;
+    this.setState(s => ({
+      posts: s.posts.map(p => p.id === m.postId ? { ...p, status: 'changes-requested', clientNote: m.note.trim() } : p),
+      changeRequestModal: null,
+    }));
+  };
+  checkStatus = (id) => {
+    if (!this.isAdmin) return;
+    this.setState({ checkingId: id });
+    const rate = (this.props.checkSuccessRate ?? 75) / 100;
+    setTimeout(() => {
+      const result = Math.random() < rate ? 'posted' : 'missed';
+      this.setState(s => ({ posts: s.posts.map(p => p.id === id ? { ...p, status: result, checkedAt: new Date().toISOString() } : p), checkingId: null }));
+    }, 1200);
+  };
+  onStrategyChange = (key, val) => this.setState(s => ({ strategyNotes: { ...s.strategyNotes, [key]: val } }));
+  exportPdf = () => window.print();
+
+  augment(p) {
+    const pm = PLATFORM_META[p.platform] || PLATFORM_META.facebook;
+    const sm = STATUS_META[p.status] || STATUS_META.scheduled;
+    const isChecking = this.state.checkingId === p.id;
+    const canEdit = this.isAdmin;
+    return {
+      ...p,
+      icon: pm.icon,
+      platformLabel: pm.label,
+      statusLabel: sm.label,
+      statusIcon: sm.icon,
+      statusTagClass: sm.tagClass,
+      statusStyle: sm.extraStyle,
+      time12: time12(p.time),
+      dateLabel: dateLabel(p.date),
+      pillarLabel: p.pillar || '—',
+      assigneeLabel: p.assignee || '—',
+      canApprove: p.status === 'needs-approval',
+      canRequestChanges: p.status === 'needs-approval',
+      hasClientNote: p.status === 'changes-requested' && !!p.clientNote,
+      clientNote: p.clientNote || '',
+      canEdit,
+      canCheck: canEdit && p.status === 'scheduled' && !isChecking,
+      isChecking,
+      hasCheckedLabel: !!p.checkedAt && !isChecking,
+      checkedLabel: p.checkedAt ? new Date(p.checkedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '',
+      cursorStyle: canEdit ? 'cursor:pointer;' : '',
+      onEdit: canEdit ? () => this.openEdit(p) : undefined,
+      onApprove: () => this.approvePost(p.id),
+      onRequestChanges: () => this.openChangeRequest(p.id),
+      onCheck: () => this.checkStatus(p.id),
+      onDelete: () => this.deletePost(p.id),
+    };
+  }
+
+  renderVals() {
+    const view = this.view;
+    const calendarMode = this.calendarMode;
+    const viewDate = this.state.viewDate;
+    const platformActive = this.state.platformActive;
+    const statusActive = this.state.statusActive;
+    const today = new Date();
+    const isAdmin = this.isAdmin;
+    const clients = this.state.clients;
+    const effectiveClientId = this.effectiveClientId;
+    const effectiveClient = clients.find(c => c.id === effectiveClientId);
+    const needsClientSetup = isAdmin && !effectiveClientId;
+
+    const scopedPosts = this.state.posts.filter(p => p.clientId === effectiveClientId);
+    const visiblePosts = scopedPosts.filter(p => platformActive.includes(p.platform));
+    const augmentedAll = visiblePosts.map(p => this.augment(p));
+
+    const viewTabDefs = [
+      { id: 'overview', label: 'Overview', icon: 'ph-squares-four' },
+      { id: 'calendar', label: 'Calendar', icon: 'ph-calendar-blank' },
+      { id: 'list', label: 'List', icon: 'ph-list-bullets' },
+    ];
+    if (isAdmin) viewTabDefs.push({ id: 'strategy', label: 'Strategy', icon: 'ph-target' }, { id: 'clients', label: 'Clients', icon: 'ph-users-three' });
+    const viewTabs = viewTabDefs.map(t => ({
+      ...t,
+      onClick: () => this.setView(t.id),
+      onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.setView(t.id); } },
+      ariaCurrent: view === t.id ? 'page' : undefined,
+      rowStyle: {
+        display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 10px',
+        borderRadius: 'var(--radius-md)', cursor: 'pointer', fontSize: '14px',
+        color: view === t.id ? 'var(--color-accent)' : 'var(--color-text)',
+        background: view === t.id ? 'var(--color-accent-800)' : 'transparent',
+      },
+    }));
+    const viewTitleMap = { overview: 'Overview', calendar: 'Calendar', list: 'All Posts', strategy: 'Strategy', clients: 'Clients' };
+    const viewSubtitle = view === 'clients' ? (clients.length + ' client account(s)') : (isAdmin ? (effectiveClient ? 'Managing ' + effectiveClient.name : 'No client selected') : (effectiveClient ? effectiveClient.name + ' · your account' : 'Your account'));
+
+    const platformChips = PLATFORM_ORDER.map(id => {
+      const active = platformActive.includes(id);
+      const meta = PLATFORM_META[id];
+      return { id, label: meta.label, icon: meta.icon, onClick: () => this.togglePlatform(id), style: { color: active ? 'var(--color-accent)' : 'var(--color-neutral-600)', borderColor: active ? 'var(--color-accent)' : 'var(--color-divider)', border: '1px solid' } };
+    });
+
+    const statCounts = { 'needs-approval': 0, 'changes-requested': 0, scheduled: 0, posted: 0, missed: 0 };
+    augmentedAll.forEach(p => { statCounts[p.status] = (statCounts[p.status] || 0) + 1; });
+    const statCards = [
+      { label: 'Needs Approval', count: statCounts['needs-approval'], icon: 'ph-hourglass', hint: 'awaiting review' },
+      { label: 'Changes Requested', count: statCounts['changes-requested'], icon: 'ph-chat-centered-text', hint: 'client left feedback' },
+      { label: 'Scheduled', count: statCounts.scheduled, icon: 'ph-clock-countdown', hint: 'queued to publish' },
+      { label: 'Posted', count: statCounts.posted, icon: 'ph-check-circle', hint: 'confirmed live' },
+      { label: 'Missed', count: statCounts.missed, icon: 'ph-x-circle', hint: 'did not go out' },
+    ];
+    const todayISOstr = toISO(today);
+    const upcomingPosts = augmentedAll.filter(p => (p.status === 'scheduled' || p.status === 'needs-approval' || p.status === 'changes-requested') && p.date >= todayISOstr)
+      .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time)).slice(0, 6);
+
+    let monthWeeks = [];
+    if (view === 'calendar' && calendarMode === 'month') {
+      const year = viewDate.getFullYear(), month = viewDate.getMonth();
+      const first = new Date(year, month, 1);
+      const last = new Date(year, month + 1, 0);
+      const start = addDays(first, -first.getDay());
+      const end = addDays(last, 6 - last.getDay());
+      let cur = new Date(start);
+      while (cur <= end) {
+        const days = [];
+        for (let i = 0; i < 7; i++) {
+          const iso = toISO(cur);
+          const dayPosts = augmentedAll.filter(p => p.date === iso).sort((a, b) => a.time.localeCompare(b.time));
+          const inMonth = cur.getMonth() === month;
+          const isToday = isSameDay(cur, today);
+          days.push({
+            key: iso, dayNum: cur.getDate(), dateISO: iso, posts: dayPosts,
+            showAdd: isAdmin,
+            onAdd: () => this.openNew(iso),
+            cellStyle: { background: 'var(--color-surface)', padding: '8px', minHeight: '96px', opacity: inMonth ? 1 : 0.4, display: 'flex', flexDirection: 'column', gap: '4px' },
+            dayNumStyle: { fontSize: '13px', color: isToday ? 'var(--color-accent)' : 'var(--color-text)', fontWeight: isToday ? 600 : 400 },
+          });
+          cur = addDays(cur, 1);
+        }
+        monthWeeks.push({ key: days[0].dateISO, days });
+      }
+    }
+
+    let weekCells = [];
+    if (view === 'calendar' && calendarMode === 'week') {
+      const start = startOfWeek(viewDate);
+      for (let i = 0; i < 7; i++) {
+        const d = addDays(start, i);
+        const iso = toISO(d);
+        const dayPosts = augmentedAll.filter(p => p.date === iso).sort((a, b) => a.time.localeCompare(b.time));
+        const isToday = isSameDay(d, today);
+        weekCells.push({ key: iso, weekdayLabel: WEEKDAY_LABELS[i], dayLabel: d.getDate(), posts: dayPosts, noPosts: dayPosts.length === 0, showAdd: isAdmin, onAdd: () => this.openNew(iso), cardStyle: isToday ? 'border:1px solid var(--color-accent);' : '' });
+      }
+    }
+
+    let periodLabel = '';
+    if (calendarMode === 'week' && (view === 'calendar' || view === 'strategy')) {
+      const start = startOfWeek(viewDate), end = addDays(start, 6);
+      periodLabel = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' – ' + end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    } else {
+      periodLabel = viewDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    }
+
+    const statusChips = STATUS_ORDER.map(id => {
+      const active = statusActive.includes(id);
+      const meta = STATUS_META[id];
+      return { id, label: meta.label, class: active ? meta.tagClass : 'tag-neutral', onClick: () => this.toggleStatus(id), style: active ? '' : 'opacity:0.4;' };
+    });
+    const listPosts = augmentedAll.filter(p => statusActive.includes(p.status)).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+
+    let strategyKey = '';
+    let periodPosts = [];
+    if (calendarMode === 'month') {
+      strategyKey = effectiveClientId + '-' + viewDate.getFullYear() + '-' + pad(viewDate.getMonth() + 1);
+      periodPosts = scopedPosts.filter(p => p.date.slice(0, 7) === viewDate.getFullYear() + '-' + pad(viewDate.getMonth() + 1));
+    } else {
+      const start = startOfWeek(viewDate), end = addDays(start, 6);
+      strategyKey = effectiveClientId + '-' + toISO(start);
+      const startISO = toISO(start), endISO = toISO(end);
+      periodPosts = scopedPosts.filter(p => p.date >= startISO && p.date <= endISO);
+    }
+    const pillarCounts = {};
+    periodPosts.forEach(p => { const key = p.pillar || 'Uncategorized'; pillarCounts[key] = (pillarCounts[key] || 0) + 1; });
+    const pillarBreakdown = Object.entries(pillarCounts).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+
+    const modal = this.state.modal;
+    const modalOpen = !!modal;
+    const platformOptions = modal ? PLATFORM_ORDER.map(id => {
+      const meta = PLATFORM_META[id];
+      const active = modal.platform === id;
+      return { id, label: meta.label, icon: meta.icon, onClick: () => this.setDraftField('platform', id), style: { color: active ? 'var(--color-accent)' : 'var(--color-text)', border: '1px solid ' + (active ? 'var(--color-accent)' : 'var(--color-divider)') } };
+    }) : [];
+    const statusOptions = modal ? STATUS_ORDER.map(id => ({ id, label: STATUS_META[id].label, active: modal.status === id, onClick: () => this.setDraftField('status', id) })) : [];
+
+    const roleCaption = isAdmin ? 'Admin: full access' : 'Client: approve, request changes & export';
+    const currentAccountLabel = isAdmin ? 'Admin' : (effectiveClient ? effectiveClient.name : 'Client');
+
+    const clientCards = clients.map(c => ({
+      id: c.id, name: c.name,
+      postCountLabel: this.state.posts.filter(p => p.clientId === c.id).length + ' post(s)',
+      credentialLabel: c.username + ' / ' + c.password,
+      onManage: () => this.setAdminViewClient(c.id),
+      onRemove: () => this.removeClient(c.id),
+    }));
+
+    return {
+      viewTabs,
+      viewTitle: viewTitleMap[view],
+      viewSubtitle,
+      isOverview: view === 'overview' && !needsClientSetup,
+      isCalendarMonth: view === 'calendar' && calendarMode === 'month' && !needsClientSetup,
+      isCalendarWeek: view === 'calendar' && calendarMode === 'week' && !needsClientSetup,
+      isList: view === 'list' && !needsClientSetup,
+      isStrategy: view === 'strategy' && !needsClientSetup,
+      isClients: view === 'clients',
+      needsClientSetup: needsClientSetup && view !== 'clients',
+      goToClients: this.goToClients,
+      showPeriodNav: (view === 'calendar' || view === 'strategy') && !needsClientSetup,
+      showModeToggle: (view === 'calendar' || view === 'strategy') && !needsClientSetup,
+      isMonthMode: calendarMode === 'month',
+      isWeekMode: calendarMode === 'week',
+      periodLabel,
+      goPrevPeriod: this.goPrevPeriod, goNextPeriod: this.goNextPeriod, goToday: this.goToday,
+      setMonthMode: this.setMonthMode, setWeekMode: this.setWeekMode,
+      showPlatformFilter: (view === 'overview' || view === 'calendar' || view === 'list') && !needsClientSetup,
+      platformChips,
+      exportPdf: this.exportPdf,
+      showNewPost: isAdmin && !!effectiveClientId && (view === 'overview' || view === 'calendar' || view === 'list'),
+      openNew: () => this.openNew(),
+      showClientSwitcher: isAdmin && clients.length > 0 && view !== 'clients',
+      clientSwitcherOptions: clients.map(c => ({ value: c.id, label: c.name })),
+      clientSwitcherValue: this.state.adminViewClientId || '',
+      onClientSwitch: this.onClientSwitch,
+      statCards,
+      hasUpcoming: upcomingPosts.length > 0,
+      noUpcoming: upcomingPosts.length === 0,
+      upcomingPosts,
+      weekdayLabels: WEEKDAY_LABELS,
+      monthWeeks,
+      weekCells,
+      statusChips,
+      hasListPosts: listPosts.length > 0,
+      noListPosts: listPosts.length === 0,
+      listPosts,
+      strategyText: this.state.strategyNotes[strategyKey] || '',
+      onStrategyChange: (e) => this.onStrategyChange(strategyKey, e.target.value),
+      hasPillars: pillarBreakdown.length > 0,
+      noPillars: pillarBreakdown.length === 0,
+      pillarBreakdown,
+      newClientName: this.state.newClientName,
+      onNewClientNameChange: this.onNewClientNameChange,
+      newClientUsername: this.state.newClientUsername,
+      onNewClientUsernameChange: this.onNewClientUsernameChange,
+      newClientPassword: this.state.newClientPassword,
+      onNewClientPasswordChange: this.onNewClientPasswordChange,
+      newClientError: this.state.newClientError,
+      addClientClick: this.addClientClick,
+      addClientDisabled: !this.state.newClientName.trim() || !this.state.newClientUsername.trim() || !this.state.newClientPassword,
+      hasClients: clients.length > 0,
+      noClients: clients.length === 0,
+      clientCards,
+      modalOpen,
+      modalTitle: modal && modal.editingId ? 'Edit post' : 'New post',
+      isEditingExisting: !!(modal && modal.editingId),
+      platformOptions,
+      draftDate: modal ? modal.date : '',
+      draftTime: modal ? modal.time : '',
+      draftTitle: modal ? modal.title : '',
+      draftPillar: modal ? modal.pillar : '',
+      draftAssignee: modal ? modal.assignee : '',
+      onDraftDate: (e) => this.setDraftField('date', e.target.value),
+      onDraftTime: (e) => this.setDraftField('time', e.target.value),
+      onDraftTitle: (e) => this.setDraftField('title', e.target.value),
+      onDraftPillar: (e) => this.setDraftField('pillar', e.target.value),
+      onDraftAssignee: (e) => this.setDraftField('assignee', e.target.value),
+      statusOptions,
+      saveDisabled: modal ? !modal.title.trim() : true,
+      saveDraft: this.saveDraft,
+      deleteDraft: this.deleteDraft,
+      closeModal: this.closeModal,
+      stopProp: this.stopProp,
+      pillarSuggestions: PILLAR_SUGGESTIONS,
+      roleCaption,
+      currentAccountLabel,
+      logout: this.logout,
+      isLoggedIn: !!this.state.session,
+      isLoggedOut: !this.state.session,
+      loginUsername: this.state.loginUsername,
+      loginPassword: this.state.loginPassword,
+      loginError: this.state.loginError,
+      onLoginUsernameChange: this.onLoginUsernameChange,
+      onLoginPasswordChange: this.onLoginPasswordChange,
+      onLoginSubmit: this.onLoginSubmit,
+      adminHint: 'Demo admin login — ' + (this.props.adminUsername || 'admin') + ' / ' + (this.props.adminPassword || 'admin123!'),
+      changeRequestOpen: !!this.state.changeRequestModal,
+      changeRequestNote: this.state.changeRequestModal ? this.state.changeRequestModal.note : '',
+      onChangeRequestNoteChange: this.onChangeRequestNoteChange,
+      closeChangeRequest: this.closeChangeRequest,
+      submitChangeRequest: this.submitChangeRequest,
+      changeRequestSaveDisabled: this.state.changeRequestModal ? !this.state.changeRequestModal.note.trim() : true,
+    };
+  }
+}
+</script>
+</body>
+</html>
