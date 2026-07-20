@@ -118,7 +118,9 @@
             </sc-for>
           </div>
         </sc-if>
-        <button class="btn btn-secondary" onClick="{{ exportPdf }}"><i class="ph ph-export"></i>Export</button>
+        <sc-if value="{{ showExport }}" hint-placeholder-val="{{ false }}">
+          <button class="btn btn-secondary" onClick="{{ exportPdf }}"><i class="ph ph-export"></i>Export</button>
+        </sc-if>
         <sc-if value="{{ showNewPost }}" hint-placeholder-val="{{ false }}">
           <button class="btn btn-primary" onClick="{{ openNew }}"><i class="ph ph-plus"></i>New Post</button>
         </sc-if>
@@ -908,6 +910,7 @@ class Component extends DCLogic {
       showPlatformFilter: (view === 'overview' || view === 'calendar' || view === 'list') && !needsClientSetup,
       platformChips,
       exportPdf: this.exportPdf,
+      showExport: view === 'calendar' && !needsClientSetup,
       showNewPost: isAdmin && !!effectiveClientId && (view === 'overview' || view === 'calendar' || view === 'list'),
       openNew: () => this.openNew(),
       showClientSwitcher: isAdmin && clients.length > 0 && view !== 'clients',
