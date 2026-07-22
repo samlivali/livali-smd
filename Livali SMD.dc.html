@@ -189,7 +189,17 @@
               <div style="display:flex;flex-direction:column;">
                 <sc-for list="{{ upcomingPosts }}" as="p" hint-placeholder-count="3">
                   <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--color-divider);">
-                    <i class="ph {{ p.icon }}" style="font-size:18px;color:var(--color-neutral-500);flex:none;"></i>
+                    <sc-if value="{{ p.hasMedia }}" hint-placeholder-val="{{ false }}">
+                      <sc-if value="{{ p.mediaIsImage }}" hint-placeholder-val="{{ true }}">
+                        <img src="{{ p.mediaDataUrl }}" alt="" style="width:36px;height:36px;object-fit:cover;border-radius:var(--radius-sm);flex:none;"/>
+                      </sc-if>
+                      <sc-if value="{{ p.mediaIsVideo }}" hint-placeholder-val="{{ false }}">
+                        <div style="width:36px;height:36px;border-radius:var(--radius-sm);background:var(--color-neutral-800);display:flex;align-items:center;justify-content:center;flex:none;"><i class="ph ph-play-fill" style="color:#fff;font-size:14px;"></i></div>
+                      </sc-if>
+                    </sc-if>
+                    <sc-if value="{{ p.noMedia }}" hint-placeholder-val="{{ true }}">
+                      <i class="ph {{ p.icon }}" style="font-size:18px;color:var(--color-neutral-500);flex:none;"></i>
+                    </sc-if>
                     <div style="min-width:0;flex:1;" onClick="{{ p.onEdit }}">
                       <div style="font-size:14px;">{{ p.title }}</div>
                       <div style="font-size:12px;color:var(--color-neutral-600);">{{ p.dateLabel }} · {{ p.time12 }} · {{ p.platformLabel }}</div>
@@ -266,6 +276,17 @@
                       <i class="ph {{ post.icon }}"></i>{{ post.time12 }}
                     </div>
                     <div style="font-size:13px;margin:2px 0 4px;">{{ post.title }}</div>
+                    <sc-if value="{{ post.hasMedia }}" hint-placeholder-val="{{ false }}">
+                      <sc-if value="{{ post.mediaIsImage }}" hint-placeholder-val="{{ true }}">
+                        <img src="{{ post.mediaDataUrl }}" alt="" style="width:100%;max-height:70px;object-fit:cover;border-radius:var(--radius-sm);margin-bottom:4px;"/>
+                      </sc-if>
+                      <sc-if value="{{ post.mediaIsVideo }}" hint-placeholder-val="{{ false }}">
+                        <video src="{{ post.mediaDataUrl }}" style="width:100%;max-height:70px;object-fit:cover;border-radius:var(--radius-sm);margin-bottom:4px;" muted></video>
+                      </sc-if>
+                    </sc-if>
+                    <sc-if value="{{ post.hasCaption }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size:11px;color:var(--color-neutral-600);margin-bottom:4px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">{{ post.caption }}</div>
+                    </sc-if>
                     <sc-if value="{{ post.hasClientNote }}" hint-placeholder-val="{{ false }}">
                       <div style="font-size:11px;color:var(--color-accent);display:flex;gap:4px;align-items:flex-start;margin-bottom:4px;"><i class="ph ph-chat-centered-text" style="flex:none;margin-top:1px;"></i><span>{{ post.clientNote }}</span></div>
                     </sc-if>
@@ -305,8 +326,25 @@
                   <tr>
                     <td>{{ p.dateLabel }}</td>
                     <td>{{ p.time12 }}</td>
-                    <td style="white-space:nowrap;"><i class="ph {{ p.icon }}"></i> {{ p.platformLabel }}</td>
-                    <td onClick="{{ p.onEdit }}" style="{{ p.cursorStyle }}max-width:220px;">{{ p.title }}</td>
+                    <td style="white-space:nowrap;">
+                      <sc-for list="{{ p.platformIcons }}" as="pi" hint-placeholder-count="2">
+                        <i class="ph {{ pi.icon }}" title="{{ pi.label }}"></i>
+                      </sc-for>
+                      {{ p.platformLabel }}
+                    </td>
+                    <td onClick="{{ p.onEdit }}" style="{{ p.cursorStyle }}max-width:220px;">
+                      <div style="display:flex;align-items:center;gap:8px;">
+                        <sc-if value="{{ p.hasMedia }}" hint-placeholder-val="{{ false }}">
+                          <sc-if value="{{ p.mediaIsImage }}" hint-placeholder-val="{{ true }}">
+                            <img src="{{ p.mediaDataUrl }}" alt="" style="width:28px;height:28px;object-fit:cover;border-radius:var(--radius-sm);flex:none;"/>
+                          </sc-if>
+                          <sc-if value="{{ p.mediaIsVideo }}" hint-placeholder-val="{{ false }}">
+                            <i class="ph ph-play-circle" style="font-size:20px;color:var(--color-neutral-500);flex:none;"></i>
+                          </sc-if>
+                        </sc-if>
+                        <span style="overflow:hidden;text-overflow:ellipsis;">{{ p.title }}</span>
+                      </div>
+                    </td>
                     <td>{{ p.pillarLabel }}</td>
                     <td>{{ p.assigneeLabel }}</td>
                     <td>
@@ -412,7 +450,7 @@
             </sc-if>
             <div style="display:flex;align-items:center;gap:var(--space-3);">
               <button class="btn btn-primary" onClick="{{ saveAdminCredentials }}" disabled="{{ saveAdminDisabled }}">Update admin login</button>
-              <div style="font-size:11px;color:var(--color-neutral-600);">Applies to this browser session only until reload — persistent storage isn't wired up yet.</div>
+              <div style="font-size:11px;color:var(--color-neutral-600);">{{ adminLoginCaption }}</div>
             </div>
           </div>
           <div class="card elev-sm" style="gap:var(--space-3);">
@@ -465,7 +503,7 @@
         <div class="dialog-title">{{ modalTitle }}</div>
         <div style="display:flex;flex-direction:column;gap:var(--space-3);">
           <div class="field">
-            <label>Platform</label>
+            <label>Platforms — select one or more</label>
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
               <sc-for list="{{ platformOptions }}" as="opt" hint-placeholder-count="6">
                 <button class="btn" style="{{ opt.style }}" onClick="{{ opt.onClick }}"><i class="ph {{ opt.icon }}"></i>{{ opt.label }}</button>
@@ -477,6 +515,29 @@
             <div class="field"><label>Time</label><input class="input" type="time" value="{{ draftTime }}" onChange="{{ onDraftTime }}"/></div>
           </div>
           <div class="field"><label>Title</label><input class="input" type="text" value="{{ draftTitle }}" onChange="{{ onDraftTitle }}" placeholder="Post title or caption summary"/></div>
+          <div class="field">
+            <label>Caption</label>
+            <textarea class="input" rows="4" value="{{ draftCaption }}" onChange="{{ onDraftCaptionChange }}" placeholder="Write the full caption for this post..."></textarea>
+          </div>
+          <div class="field">
+            <label>Media (image or video)</label>
+            <sc-if value="{{ hasDraftMedia }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                <sc-if value="{{ draftMediaIsImage }}" hint-placeholder-val="{{ true }}">
+                  <img src="{{ draftMediaDataUrl }}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--color-divider);flex:none;"/>
+                </sc-if>
+                <sc-if value="{{ draftMediaIsVideo }}" hint-placeholder-val="{{ false }}">
+                  <video src="{{ draftMediaDataUrl }}" style="width:56px;height:56px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--color-divider);flex:none;" muted></video>
+                </sc-if>
+                <div style="flex:1;min-width:0;font-size:12px;color:var(--color-neutral-600);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ draftMediaName }}</div>
+                <button class="btn btn-secondary" onClick="{{ removeDraftMedia }}">Remove</button>
+              </div>
+            </sc-if>
+            <input class="input" type="file" accept="image/*,video/*" onChange="{{ onDraftMediaChange }}"/>
+            <sc-if value="{{ modalMediaError }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:12px;color:var(--color-accent);margin-top:4px;">{{ modalMediaError }}</div>
+            </sc-if>
+          </div>
           <div class="modal-two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);">
             <div class="field">
               <label>Content pillar</label>
@@ -590,6 +651,11 @@ function dateLabel(iso) {
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
+function postPlatforms(p) {
+  if (p.platforms && p.platforms.length) return p.platforms;
+  if (p.platform) return [p.platform];
+  return ['facebook'];
+}
 
 class Component extends DCLogic {
   state = {
@@ -618,6 +684,7 @@ class Component extends DCLogic {
     adminUsernameDraft: null,
     adminPasswordDraft: null,
     adminCredentialError: '',
+    modalMediaError: '',
     driveConnected: false,
     driveFileId: null,
     driveStatus: 'idle',
@@ -853,14 +920,41 @@ class Component extends DCLogic {
   openNew = (dateISO) => {
     if (!this.isAdmin || !this.effectiveClientId) return;
     const d = typeof dateISO === 'string' ? dateISO : toISO(this.state.viewDate);
-    this.setState({ modal: { editingId: null, clientId: this.effectiveClientId, platform: 'facebook', date: d, time: '09:00', title: '', pillar: '', assignee: '', status: 'needs-approval' } });
+    this.setState({
+      modal: { editingId: null, clientId: this.effectiveClientId, platforms: ['facebook'], date: d, time: '09:00', title: '', caption: '', mediaDataUrl: null, mediaType: null, mediaName: null, pillar: '', assignee: '', status: 'needs-approval' },
+      modalMediaError: '',
+    });
   };
   openEdit = (post) => {
     if (!this.isAdmin) return;
-    this.setState({ modal: { editingId: post.id, clientId: post.clientId, platform: post.platform, date: post.date, time: post.time, title: post.title, pillar: post.pillar || '', assignee: post.assignee || '', status: post.status } });
+    this.setState({
+      modal: { editingId: post.id, clientId: post.clientId, platforms: postPlatforms(post), date: post.date, time: post.time, title: post.title, caption: post.caption || '', mediaDataUrl: post.mediaDataUrl || null, mediaType: post.mediaType || null, mediaName: post.mediaName || null, pillar: post.pillar || '', assignee: post.assignee || '', status: post.status },
+      modalMediaError: '',
+    });
   };
-  closeModal = () => this.setState({ modal: null });
+  closeModal = () => this.setState({ modal: null, modalMediaError: '' });
   setDraftField = (field, val) => this.setState(s => ({ modal: { ...s.modal, [field]: val } }));
+  toggleDraftPlatform = (id) => this.setState(s => {
+    const cur = s.modal.platforms;
+    const next = cur.includes(id) ? cur.filter(x => x !== id) : cur.concat(id);
+    return { modal: { ...s.modal, platforms: next } };
+  });
+  onDraftCaptionChange = (e) => this.setDraftField('caption', e.target.value);
+  onDraftMediaChange = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    if (!/^image\/|^video\//.test(file.type)) { this.setState({ modalMediaError: 'Please choose an image or video file.' }); return; }
+    if (file.size > 5 * 1024 * 1024) { this.setState({ modalMediaError: 'That file is too large — please use something under 5MB.' }); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      this.setState(s => ({
+        modal: { ...s.modal, mediaDataUrl: reader.result, mediaType: file.type.startsWith('video') ? 'video' : 'image', mediaName: file.name },
+        modalMediaError: '',
+      }));
+    };
+    reader.readAsDataURL(file);
+  };
+  removeDraftMedia = () => this.setState(s => ({ modal: { ...s.modal, mediaDataUrl: null, mediaType: null, mediaName: null } }));
   saveDraft = () => {
     const m = this.state.modal;
     if (!m || !m.title.trim()) return;
@@ -901,14 +995,25 @@ class Component extends DCLogic {
   exportPdf = () => window.print();
 
   augment(p) {
-    const pm = PLATFORM_META[p.platform] || PLATFORM_META.facebook;
+    const plats = postPlatforms(p);
+    const metas = plats.map(id => PLATFORM_META[id] || PLATFORM_META.facebook);
     const sm = STATUS_META[p.status] || STATUS_META.scheduled;
     const isChecking = this.state.checkingId === p.id;
     const canEdit = this.isAdmin;
+    const hasMedia = !!p.mediaDataUrl;
     return {
       ...p,
-      icon: pm.icon,
-      platformLabel: pm.label,
+      platforms: plats,
+      icon: metas[0].icon,
+      platformIcons: metas.map(m => ({ icon: m.icon, label: m.label })),
+      platformLabel: metas.map(m => m.label).join(', '),
+      hasMedia,
+      noMedia: !hasMedia,
+      mediaIsImage: p.mediaType === 'image',
+      mediaIsVideo: p.mediaType === 'video',
+      mediaDataUrl: p.mediaDataUrl || '',
+      hasCaption: !!(p.caption && p.caption.trim()),
+      caption: p.caption || '',
       statusLabel: sm.label,
       statusIcon: sm.icon,
       statusTagClass: sm.tagClass,
@@ -949,7 +1054,7 @@ class Component extends DCLogic {
     const needsClientSetup = isAdmin && !effectiveClientId;
 
     const scopedPosts = this.state.posts.filter(p => p.clientId === effectiveClientId);
-    const visiblePosts = scopedPosts.filter(p => platformActive.includes(p.platform));
+    const visiblePosts = scopedPosts.filter(p => postPlatforms(p).some(pl => platformActive.includes(pl)));
     const augmentedAll = visiblePosts.map(p => this.augment(p));
 
     const viewTabDefs = [
@@ -1066,8 +1171,8 @@ class Component extends DCLogic {
     const modalOpen = !!modal;
     const platformOptions = modal ? PLATFORM_ORDER.map(id => {
       const meta = PLATFORM_META[id];
-      const active = modal.platform === id;
-      return { id, label: meta.label, icon: meta.icon, onClick: () => this.setDraftField('platform', id), style: { color: active ? 'var(--color-accent)' : 'var(--color-text)', border: '1px solid ' + (active ? 'var(--color-accent)' : 'var(--color-divider)') } };
+      const active = modal.platforms.includes(id);
+      return { id, label: meta.label, icon: meta.icon, onClick: () => this.toggleDraftPlatform(id), style: { color: active ? 'var(--color-accent)' : 'var(--color-text)', border: '1px solid ' + (active ? 'var(--color-accent)' : 'var(--color-divider)') } };
     }) : [];
     const statusOptions = modal ? STATUS_ORDER.map(id => ({ id, label: STATUS_META[id].label, active: modal.status === id, onClick: () => this.setDraftField('status', id) })) : [];
 
@@ -1089,6 +1194,9 @@ class Component extends DCLogic {
     } else {
       driveStatusLabel = 'Connected — waiting for first sync…';
     }
+    const adminLoginCaption = this.state.driveConnected
+      ? 'Synced to Google Drive — changes save automatically.'
+      : 'Not synced — connect Google Drive above to save changes across devices.';
 
     const clientCards = clients.map(c => ({
       id: c.id, name: c.name,
@@ -1162,6 +1270,16 @@ class Component extends DCLogic {
       draftDate: modal ? modal.date : '',
       draftTime: modal ? modal.time : '',
       draftTitle: modal ? modal.title : '',
+      draftCaption: modal ? modal.caption : '',
+      onDraftCaptionChange: this.onDraftCaptionChange,
+      draftMediaDataUrl: modal ? modal.mediaDataUrl : null,
+      draftMediaName: modal ? modal.mediaName : null,
+      hasDraftMedia: !!(modal && modal.mediaDataUrl),
+      draftMediaIsImage: !!(modal && modal.mediaType === 'image'),
+      draftMediaIsVideo: !!(modal && modal.mediaType === 'video'),
+      onDraftMediaChange: this.onDraftMediaChange,
+      removeDraftMedia: this.removeDraftMedia,
+      modalMediaError: this.state.modalMediaError,
       draftPillar: modal ? modal.pillar : '',
       draftAssignee: modal ? modal.assignee : '',
       onDraftDate: (e) => this.setDraftField('date', e.target.value),
@@ -1170,7 +1288,7 @@ class Component extends DCLogic {
       onDraftPillar: (e) => this.setDraftField('pillar', e.target.value),
       onDraftAssignee: (e) => this.setDraftField('assignee', e.target.value),
       statusOptions,
-      saveDisabled: modal ? !modal.title.trim() : true,
+      saveDisabled: modal ? (!modal.title.trim() || !modal.platforms.length) : true,
       saveDraft: this.saveDraft,
       deleteDraft: this.deleteDraft,
       closeModal: this.closeModal,
@@ -1192,6 +1310,7 @@ class Component extends DCLogic {
       adminPasswordDraft,
       onAdminPasswordDraftChange: this.onAdminPasswordDraftChange,
       adminCredentialError: this.state.adminCredentialError,
+      adminLoginCaption,
       saveAdminCredentials: this.saveAdminCredentials,
       saveAdminDisabled: !adminUsernameDraft.trim() || !adminPasswordDraft,
       changeRequestOpen: !!this.state.changeRequestModal,
