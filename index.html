@@ -284,6 +284,9 @@
                         <video src="{{ post.mediaDataUrl }}" style="width:100%;max-height:70px;object-fit:cover;border-radius:var(--radius-sm);margin-bottom:4px;" muted></video>
                       </sc-if>
                     </sc-if>
+                    <sc-if value="{{ post.mediaExpired }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size:10px;color:var(--color-neutral-500);margin-bottom:4px;display:flex;align-items:center;gap:3px;"><i class="ph ph-clock-countdown"></i>Media expired</div>
+                    </sc-if>
                     <sc-if value="{{ post.hasCaption }}" hint-placeholder-val="{{ false }}">
                       <div style="font-size:11px;color:var(--color-neutral-600);margin-bottom:4px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">{{ post.caption }}</div>
                     </sc-if>
@@ -341,6 +344,9 @@
                           <sc-if value="{{ p.mediaIsVideo }}" hint-placeholder-val="{{ false }}">
                             <i class="ph ph-play-circle" style="font-size:20px;color:var(--color-neutral-500);flex:none;"></i>
                           </sc-if>
+                        </sc-if>
+                        <sc-if value="{{ p.mediaExpired }}" hint-placeholder-val="{{ false }}">
+                          <i class="ph ph-clock-countdown" title="Media expired 48h after posting" style="font-size:16px;color:var(--color-neutral-400);flex:none;"></i>
                         </sc-if>
                         <span style="overflow:hidden;text-overflow:ellipsis;">{{ p.title }}</span>
                       </div>
@@ -521,6 +527,9 @@
           </div>
           <div class="field">
             <label>Media (image or video)</label>
+            <sc-if value="{{ draftMediaExpiredNote }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:12px;color:var(--color-neutral-600);margin-bottom:6px;display:flex;align-items:center;gap:4px;"><i class="ph ph-clock-countdown"></i>The original file was automatically removed 48 hours after this post went live. Upload a new one if you need it here.</div>
+            </sc-if>
             <sc-if value="{{ hasDraftMedia }}" hint-placeholder-val="{{ false }}">
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
                 <sc-if value="{{ draftMediaIsImage }}" hint-placeholder-val="{{ true }}">
@@ -634,6 +643,20 @@ const WEEKDAY_LABELS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const DRIVE_CLIENT_ID = '377001504048-9ri8frrpov3kdtlktk6pqjmioc4urrqn.apps.googleusercontent.com';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const DRIVE_FILE_NAME = 'livali-smd-data.json';
+const MEDIA_EXPIRY_MS = 48 * 60 * 60 * 1000;
+
+function expireMedia(posts) {
+  const now = Date.now();
+  let changed = false;
+  const next = posts.map(p => {
+    if (p.mediaDataUrl && p.status === 'posted' && p.checkedAt && (now - new Date(p.checkedAt).getTime() > MEDIA_EXPIRY_MS)) {
+      changed = true;
+      return { ...p, mediaDataUrl: null, mediaType: null, mediaName: null, mediaExpired: true };
+    }
+    return p;
+  });
+  return { posts: next, changed };
+}
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function toISO(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
@@ -751,6 +774,21 @@ class Component extends DCLogic {
   };
   logout = () => this.setState({ session: null, loginUsername: '', loginPassword: '', loginError: '' });
 
+  componentDidMount() {
+    this.expireMediaTick();
+    this.mediaExpiryInterval = setInterval(this.expireMediaTick, 30 * 60 * 1000);
+  }
+
+  componentWillUnmount() {
+    clearInterval(this.mediaExpiryInterval);
+    clearTimeout(this.driveSaveTimer);
+  }
+
+  expireMediaTick = () => {
+    const { posts, changed } = expireMedia(this.state.posts);
+    if (changed) this.setState({ posts });
+  };
+
   componentDidUpdate(prevProps, prevState) {
     if (!this.driveAccessToken || !this.driveLoaded) return;
     const changed = prevState.clients !== this.state.clients
@@ -814,9 +852,10 @@ class Component extends DCLogic {
         const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, { headers: this.driveAuthHeader() });
         if (fileRes.status === 401) { this.driveHandleAuthExpired(); return; }
         const data = await fileRes.json();
+        const { posts: loadedPosts } = expireMedia(data.posts || []);
         this.setState({
           clients: data.clients || [],
-          posts: data.posts || [],
+          posts: loadedPosts,
           strategyNotes: data.strategyNotes || {},
           adminUsernameOverride: data.adminUsernameOverride || null,
           adminPasswordOverride: data.adminPasswordOverride || null,
@@ -928,7 +967,7 @@ class Component extends DCLogic {
   openEdit = (post) => {
     if (!this.isAdmin) return;
     this.setState({
-      modal: { editingId: post.id, clientId: post.clientId, platforms: postPlatforms(post), date: post.date, time: post.time, title: post.title, caption: post.caption || '', mediaDataUrl: post.mediaDataUrl || null, mediaType: post.mediaType || null, mediaName: post.mediaName || null, pillar: post.pillar || '', assignee: post.assignee || '', status: post.status },
+      modal: { editingId: post.id, clientId: post.clientId, platforms: postPlatforms(post), date: post.date, time: post.time, title: post.title, caption: post.caption || '', mediaDataUrl: post.mediaDataUrl || null, mediaType: post.mediaType || null, mediaName: post.mediaName || null, mediaExpired: !!post.mediaExpired, pillar: post.pillar || '', assignee: post.assignee || '', status: post.status },
       modalMediaError: '',
     });
   };
@@ -947,10 +986,13 @@ class Component extends DCLogic {
     if (file.size > 5 * 1024 * 1024) { this.setState({ modalMediaError: 'That file is too large — please use something under 5MB.' }); return; }
     const reader = new FileReader();
     reader.onload = () => {
-      this.setState(s => ({
-        modal: { ...s.modal, mediaDataUrl: reader.result, mediaType: file.type.startsWith('video') ? 'video' : 'image', mediaName: file.name },
-        modalMediaError: '',
-      }));
+      this.setState(s => {
+        if (!s.modal) return null;
+        return {
+          modal: { ...s.modal, mediaDataUrl: reader.result, mediaType: file.type.startsWith('video') ? 'video' : 'image', mediaName: file.name },
+          modalMediaError: '',
+        };
+      });
     };
     reader.readAsDataURL(file);
   };
@@ -958,10 +1000,19 @@ class Component extends DCLogic {
   saveDraft = () => {
     const m = this.state.modal;
     if (!m || !m.title.trim()) return;
-    if (m.editingId) this.setState(s => ({ posts: s.posts.map(p => p.id === m.editingId ? { ...p, ...m } : p), modal: null }));
-    else {
+    if (m.editingId) {
+      this.setState(s => ({
+        posts: s.posts.map(p => {
+          if (p.id !== m.editingId) return p;
+          const becamePosted = m.status === 'posted' && p.status !== 'posted';
+          return { ...p, ...m, mediaExpired: m.mediaDataUrl ? false : p.mediaExpired, checkedAt: becamePosted ? new Date().toISOString() : p.checkedAt };
+        }),
+        modal: null,
+      }));
+    } else {
       const id = 'p' + Date.now() + Math.random().toString(36).slice(2, 6);
-      this.setState(s => ({ posts: s.posts.concat({ id, ...m, checkedAt: null }), modal: null }));
+      const checkedAt = m.status === 'posted' ? new Date().toISOString() : null;
+      this.setState(s => ({ posts: s.posts.concat({ id, ...m, checkedAt }), modal: null }));
     }
   };
   deleteDraft = () => {
@@ -1009,6 +1060,7 @@ class Component extends DCLogic {
       platformLabel: metas.map(m => m.label).join(', '),
       hasMedia,
       noMedia: !hasMedia,
+      mediaExpired: !hasMedia && !!p.mediaExpired,
       mediaIsImage: p.mediaType === 'image',
       mediaIsVideo: p.mediaType === 'video',
       mediaDataUrl: p.mediaDataUrl || '',
@@ -1277,6 +1329,7 @@ class Component extends DCLogic {
       hasDraftMedia: !!(modal && modal.mediaDataUrl),
       draftMediaIsImage: !!(modal && modal.mediaType === 'image'),
       draftMediaIsVideo: !!(modal && modal.mediaType === 'video'),
+      draftMediaExpiredNote: !!(modal && !modal.mediaDataUrl && modal.mediaExpired),
       onDraftMediaChange: this.onDraftMediaChange,
       removeDraftMedia: this.removeDraftMedia,
       modalMediaError: this.state.modalMediaError,
