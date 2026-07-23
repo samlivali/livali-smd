@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="_ds/nocturne-c2ba2121-c628-44a8-8cd4-d005bf9640c5/styles.css">
 <script src="_ds/nocturne-c2ba2121-c628-44a8-8cd4-d005bf9640c5/_ds_bundle.js"></script>
 <script src="https://unpkg.com/@phosphor-icons/web"></script>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   html,body{margin:0;height:100%;}
   /* Livali brand override — red / white / black on the Nocturne structure */
@@ -58,7 +58,7 @@
     .account-info{padding:0!important;}
     .account-role{display:none;}
     .logout-label{display:none;}
-    .drive-status{display:none;}
+    .sync-status{display:none;}
     .app-main{min-width:0!important;}
     .app-header{padding:var(--space-3)!important;}
     .period-nav{flex-wrap:wrap;width:100%!important;}
@@ -102,8 +102,8 @@
       <div class="account-info" style="padding:0 var(--space-2);">
         <div style="font-size:13px;font-weight:500;">{{ currentAccountLabel }}</div>
         <div class="account-role" style="font-size:11px;color:var(--color-neutral-600);">{{ roleCaption }}</div>
-        <sc-if value="{{ driveSidebarLabel }}" hint-placeholder-val="{{ false }}">
-          <div class="drive-status" style="font-size:10px;color:var(--color-neutral-500);margin-top:2px;">{{ driveSidebarLabel }}</div>
+        <sc-if value="{{ sidebarSyncLabel }}" hint-placeholder-val="{{ false }}">
+          <div class="sync-status" style="font-size:10px;color:var(--color-neutral-500);margin-top:2px;">{{ sidebarSyncLabel }}</div>
         </sc-if>
       </div>
       <button class="btn btn-secondary no-print" style="margin:0 var(--space-2);" onClick="{{ logout }}"><i class="ph ph-sign-out"></i><span class="logout-label">Log out</span></button>
@@ -420,24 +420,16 @@
       <sc-if value="{{ isClients }}" hint-placeholder-val="{{ false }}">
         <div style="max-width:900px;display:flex;flex-direction:column;gap:var(--space-4);">
           <div class="card elev-sm" style="gap:var(--space-3);max-width:480px;">
-            <h4 style="margin:0;">Google Drive sync</h4>
-            <sc-if value="{{ driveConnected }}" hint-placeholder-val="{{ false }}">
-              <div style="font-size:13px;display:flex;align-items:center;gap:6px;">
-                <i class="ph ph-cloud-check" style="color:var(--color-accent);"></i>
-                <span>{{ driveStatusLabel }}</span>
-              </div>
-              <div style="display:flex;gap:8px;">
-                <button class="btn btn-secondary" onClick="{{ driveSaveNow }}" disabled="{{ driveBusy }}">Sync now</button>
-                <button class="btn btn-secondary" onClick="{{ disconnectDrive }}">Disconnect</button>
-              </div>
+            <h4 style="margin:0;">Cloud sync</h4>
+            <div style="font-size:13px;display:flex;align-items:center;gap:6px;">
+              <i class="ph ph-cloud-check" style="color:var(--color-accent);"></i>
+              <span>{{ syncStatusLabel }}</span>
+            </div>
+            <p style="margin:0;font-size:12px;color:var(--color-neutral-600);">Clients, posts and settings save automatically to the database — everyone who logs in sees the same data, on any device.</p>
+            <sc-if value="{{ syncErrorMsg }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:12px;color:var(--color-accent);">{{ syncErrorMsg }}</div>
             </sc-if>
-            <sc-if value="{{ driveDisconnected }}" hint-placeholder-val="{{ true }}">
-              <p style="margin:0;font-size:13px;color:var(--color-neutral-600);">Connect Google Drive to back up clients, posts and settings, and pick up where you left off on another device.</p>
-              <button class="btn btn-primary" style="align-self:flex-start;" onClick="{{ connectDrive }}" disabled="{{ driveBusy }}"><i class="ph ph-cloud-arrow-up"></i>Connect Google Drive</button>
-            </sc-if>
-            <sc-if value="{{ driveErrorMsg }}" hint-placeholder-val="{{ false }}">
-              <div style="font-size:12px;color:var(--color-accent);">{{ driveErrorMsg }}</div>
-            </sc-if>
+            <button class="btn btn-secondary" style="align-self:flex-start;" onClick="{{ syncNow }}" disabled="{{ syncBusy }}">Sync now</button>
           </div>
           <div class="card elev-sm" style="gap:var(--space-3);max-width:480px;">
             <h4 style="margin:0;">Admin login</h4>
@@ -614,7 +606,10 @@
       <sc-if value="{{ loginError }}" hint-placeholder-val="{{ false }}">
         <div style="font-size:12px;color:var(--color-accent);">{{ loginError }}</div>
       </sc-if>
-      <button class="btn btn-primary btn-block" type="submit">Log in</button>
+      <button class="btn btn-primary btn-block" type="submit" disabled="{{ appDataLoading }}">Log in</button>
+      <sc-if value="{{ appDataLoading }}" hint-placeholder-val="{{ false }}">
+        <div style="font-size:11px;color:var(--color-neutral-600);text-align:center;">Loading your data…</div>
+      </sc-if>
     </form>
   </div>
 </sc-if>
@@ -640,9 +635,8 @@ const STATUS_META = {
 const STATUS_ORDER = ['needs-approval', 'changes-requested', 'scheduled', 'posted', 'missed'];
 const PILLAR_SUGGESTIONS = ['Promotional', 'Educational', 'Community', 'Product Update', 'Behind the Scenes', 'UGC', 'Announcement'];
 const WEEKDAY_LABELS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-const DRIVE_CLIENT_ID = '377001504048-9ri8frrpov3kdtlktk6pqjmioc4urrqn.apps.googleusercontent.com';
-const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
-const DRIVE_FILE_NAME = 'livali-smd-data.json';
+const SUPABASE_URL = 'https://adccekhhqeprxbwcentk.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFkY2Nla2hocWVwcnhid2NlbnRrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3ODU4OTMsImV4cCI6MjEwMDM2MTg5M30.aWcXhe8B_8ffIl_tTkFZCN6Itvu08Od6TkwSMDgL-ro';
 const MEDIA_EXPIRY_MS = 48 * 60 * 60 * 1000;
 
 function expireMedia(posts) {
@@ -708,17 +702,15 @@ class Component extends DCLogic {
     adminPasswordDraft: null,
     adminCredentialError: '',
     modalMediaError: '',
-    driveConnected: false,
-    driveFileId: null,
-    driveStatus: 'idle',
-    driveError: '',
-    driveLastSyncedAt: null,
+    appDataLoaded: false,
+    syncStatus: 'idle',
+    syncError: '',
+    lastSyncedAt: null,
   };
 
-  driveAccessToken = null;
-  driveTokenClient = null;
-  driveSaveTimer = null;
-  driveLoaded = false;
+  sb = null;
+  sbLoaded = false;
+  saveTimer = null;
 
   get isAdmin() { return !!this.state.session && this.state.session.role === 'admin'; }
   get view() {
@@ -756,6 +748,7 @@ class Component extends DCLogic {
   onLoginPasswordChange = (e) => this.setState({ loginPassword: e.target.value });
   onLoginSubmit = (e) => { e.preventDefault(); this.login(); };
   login = () => {
+    if (!this.state.appDataLoaded) return;
     const u = this.state.loginUsername.trim();
     const p = this.state.loginPassword;
     if (!u || !p) { this.setState({ loginError: 'Enter a username and password.' }); return; }
@@ -775,151 +768,78 @@ class Component extends DCLogic {
   logout = () => this.setState({ session: null, loginUsername: '', loginPassword: '', loginError: '' });
 
   componentDidMount() {
+    this.sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    this.loadAppState();
     this.expireMediaTick();
     this.mediaExpiryInterval = setInterval(this.expireMediaTick, 30 * 60 * 1000);
   }
 
   componentWillUnmount() {
     clearInterval(this.mediaExpiryInterval);
-    clearTimeout(this.driveSaveTimer);
+    clearTimeout(this.saveTimer);
   }
 
   expireMediaTick = () => {
     const { posts, changed } = expireMedia(this.state.posts);
-    if (changed) this.setState({ posts });
+    if (changed) { this.setState({ posts }); this.scheduleSave(); }
   };
 
-  componentDidUpdate(prevProps, prevState) {
-    if (!this.driveAccessToken || !this.driveLoaded) return;
-    const changed = prevState.clients !== this.state.clients
-      || prevState.posts !== this.state.posts
-      || prevState.strategyNotes !== this.state.strategyNotes
-      || prevState.adminUsernameOverride !== this.state.adminUsernameOverride
-      || prevState.adminPasswordOverride !== this.state.adminPasswordOverride;
-    if (changed) this.scheduleDriveSave();
-  }
-
-  ensureDriveTokenClient(onToken) {
-    if (!window.google || !window.google.accounts || !window.google.accounts.oauth2) return null;
-    if (!this.driveTokenClient) {
-      this.driveTokenClient = window.google.accounts.oauth2.initTokenClient({
-        client_id: DRIVE_CLIENT_ID,
-        scope: DRIVE_SCOPE,
-        callback: onToken,
+  loadAppState = async () => {
+    this.setState({ syncStatus: 'loading' });
+    try {
+      const { data, error } = await this.sb.from('app_state').select('data').eq('id', 'singleton').single();
+      if (error) throw error;
+      const raw = (data && data.data) || {};
+      const { posts: loadedPosts } = expireMedia(raw.posts || []);
+      this.setState({
+        clients: raw.clients || [],
+        posts: loadedPosts,
+        strategyNotes: raw.strategyNotes || {},
+        adminUsernameOverride: raw.adminUsernameOverride || null,
+        adminPasswordOverride: raw.adminPasswordOverride || null,
+        syncStatus: 'idle',
+        syncError: '',
+        lastSyncedAt: new Date().toISOString(),
+        appDataLoaded: true,
+      });
+      this.sbLoaded = true;
+    } catch (e) {
+      this.setState({
+        syncStatus: 'error',
+        syncError: 'Could not reach the database. You can keep working in this tab; use "Sync now" once your connection is back.',
+        appDataLoaded: true,
       });
     }
-    return this.driveTokenClient;
-  }
-
-  connectDrive = () => {
-    const client = this.ensureDriveTokenClient((resp) => {
-      if (!resp || resp.error || !resp.access_token) {
-        this.setState({ driveStatus: 'error', driveError: 'Google sign-in was cancelled or failed.' });
-        return;
-      }
-      this.driveAccessToken = resp.access_token;
-      this.setState({ driveConnected: true, driveStatus: 'loading', driveError: '' });
-      this.driveLoad();
-    });
-    if (!client) {
-      this.setState({ driveStatus: 'error', driveError: 'Google sign-in is still loading — try again in a moment.' });
-      return;
-    }
-    client.requestAccessToken({ prompt: 'consent' });
   };
 
-  disconnectDrive = () => {
-    if (this.driveAccessToken && window.google && window.google.accounts && window.google.accounts.oauth2) {
-      window.google.accounts.oauth2.revoke(this.driveAccessToken, () => {});
-    }
-    this.driveAccessToken = null;
-    this.driveLoaded = false;
-    clearTimeout(this.driveSaveTimer);
-    this.setState({ driveConnected: false, driveFileId: null, driveStatus: 'idle', driveError: '', driveLastSyncedAt: null });
+  scheduleSave = () => {
+    clearTimeout(this.saveTimer);
+    this.saveTimer = setTimeout(() => this.saveAppState(), 1500);
   };
 
-  driveAuthHeader() { return { Authorization: 'Bearer ' + this.driveAccessToken }; }
-
-  driveLoad = async () => {
-    try {
-      const q = encodeURIComponent(`name='${DRIVE_FILE_NAME}' and trashed=false`);
-      const listRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, { headers: this.driveAuthHeader() });
-      if (listRes.status === 401) { this.driveHandleAuthExpired(); return; }
-      const listData = await listRes.json();
-      const files = (listData && listData.files) || [];
-      if (files.length) {
-        const fileId = files[0].id;
-        const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, { headers: this.driveAuthHeader() });
-        if (fileRes.status === 401) { this.driveHandleAuthExpired(); return; }
-        const data = await fileRes.json();
-        const { posts: loadedPosts } = expireMedia(data.posts || []);
-        this.setState({
-          clients: data.clients || [],
-          posts: loadedPosts,
-          strategyNotes: data.strategyNotes || {},
-          adminUsernameOverride: data.adminUsernameOverride || null,
-          adminPasswordOverride: data.adminPasswordOverride || null,
-          driveFileId: fileId,
-          driveStatus: 'idle',
-          driveLastSyncedAt: new Date().toISOString(),
-        });
-      } else {
-        this.setState({ driveFileId: null, driveStatus: 'idle' });
-      }
-      this.driveLoaded = true;
-    } catch (e) {
-      this.setState({ driveStatus: 'error', driveError: 'Could not reach Google Drive. Check your connection and try again.' });
-    }
-  };
-
-  driveHandleAuthExpired = () => {
-    this.driveAccessToken = null;
-    this.driveLoaded = false;
-    this.setState({ driveConnected: false, driveStatus: 'error', driveError: 'Your Google session expired — connect again to keep syncing.' });
-  };
-
-  scheduleDriveSave = () => {
-    clearTimeout(this.driveSaveTimer);
-    this.driveSaveTimer = setTimeout(() => this.driveSave(), 1500);
-  };
-
-  driveSave = async () => {
-    if (!this.driveAccessToken) return;
-    this.setState({ driveStatus: 'saving' });
-    const payload = JSON.stringify({
+  saveAppState = async () => {
+    if (!this.sb || !this.sbLoaded) return;
+    this.setState({ syncStatus: 'saving' });
+    const payload = {
       clients: this.state.clients,
       posts: this.state.posts,
       strategyNotes: this.state.strategyNotes,
       adminUsernameOverride: this.state.adminUsernameOverride,
       adminPasswordOverride: this.state.adminPasswordOverride,
-      savedAt: new Date().toISOString(),
-    });
+    };
     try {
-      let fileId = this.state.driveFileId;
-      if (fileId) {
-        const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
-          method: 'PATCH',
-          headers: { ...this.driveAuthHeader(), 'Content-Type': 'application/json' },
-          body: payload,
-        });
-        if (res.status === 401) { this.driveHandleAuthExpired(); return; }
-      } else {
-        const boundary = 'livalismdboundary';
-        const metadata = JSON.stringify({ name: DRIVE_FILE_NAME, mimeType: 'application/json' });
-        const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${payload}\r\n--${boundary}--`;
-        const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
-          method: 'POST',
-          headers: { ...this.driveAuthHeader(), 'Content-Type': `multipart/related; boundary=${boundary}` },
-          body,
-        });
-        if (res.status === 401) { this.driveHandleAuthExpired(); return; }
-        const created = await res.json();
-        fileId = created.id;
-      }
-      this.setState({ driveFileId: fileId, driveStatus: 'idle', driveLastSyncedAt: new Date().toISOString() });
+      const { error } = await this.sb.from('app_state').update({ data: payload, updated_at: new Date().toISOString() }).eq('id', 'singleton');
+      if (error) throw error;
+      this.sbLoaded = true;
+      this.setState({ syncStatus: 'idle', syncError: '', lastSyncedAt: new Date().toISOString() });
     } catch (e) {
-      this.setState({ driveStatus: 'error', driveError: 'Sync to Drive failed. Your changes are still saved in this tab.' });
+      this.setState({ syncStatus: 'error', syncError: 'Sync failed — your changes are saved locally in this tab and will retry automatically.' });
     }
+  };
+
+  syncNow = () => {
+    if (!this.sbLoaded) this.loadAppState();
+    else this.saveAppState();
   };
   setAdminViewClient = (id) => this.setState({ adminViewClientId: id, view: 'overview' });
   onClientSwitch = (e) => this.setAdminViewClient(e.target.value);
@@ -936,6 +856,7 @@ class Component extends DCLogic {
     const taken = this.state.clients.some(c => c.username.toLowerCase() === username.toLowerCase());
     if (taken) { this.setState({ adminCredentialError: 'That username is already used by a client account.' }); return; }
     this.setState({ adminUsernameOverride: username, adminPasswordOverride: password, adminUsernameDraft: null, adminPasswordDraft: null, adminCredentialError: '' });
+    this.scheduleSave();
   };
   addClientClick = () => {
     const name = this.state.newClientName.trim();
@@ -946,15 +867,19 @@ class Component extends DCLogic {
     if (taken) { this.setState({ newClientError: 'That username is already taken.' }); return; }
     const id = 'c' + Date.now() + Math.random().toString(36).slice(2, 5);
     this.setState(s => ({ clients: s.clients.concat({ id, name, username, password }), adminViewClientId: s.adminViewClientId || id, newClientName: '', newClientUsername: '', newClientPassword: '', newClientError: '' }));
+    this.scheduleSave();
   };
-  removeClient = (id) => this.setState(s => {
-    const clients = s.clients.filter(c => c.id !== id);
-    return {
-      clients,
-      posts: s.posts.filter(p => p.clientId !== id),
-      adminViewClientId: s.adminViewClientId === id ? (clients[0] ? clients[0].id : null) : s.adminViewClientId,
-    };
-  });
+  removeClient = (id) => {
+    this.setState(s => {
+      const clients = s.clients.filter(c => c.id !== id);
+      return {
+        clients,
+        posts: s.posts.filter(p => p.clientId !== id),
+        adminViewClientId: s.adminViewClientId === id ? (clients[0] ? clients[0].id : null) : s.adminViewClientId,
+      };
+    });
+    this.scheduleSave();
+  };
 
   openNew = (dateISO) => {
     if (!this.isAdmin || !this.effectiveClientId) return;
@@ -1014,14 +939,16 @@ class Component extends DCLogic {
       const checkedAt = m.status === 'posted' ? new Date().toISOString() : null;
       this.setState(s => ({ posts: s.posts.concat({ id, ...m, checkedAt }), modal: null }));
     }
+    this.scheduleSave();
   };
   deleteDraft = () => {
     const m = this.state.modal;
     if (!m || !m.editingId) return;
     this.setState(s => ({ posts: s.posts.filter(p => p.id !== m.editingId), modal: null }));
+    this.scheduleSave();
   };
-  deletePost = (id) => { if (this.isAdmin) this.setState(s => ({ posts: s.posts.filter(p => p.id !== id) })); };
-  approvePost = (id) => this.setState(s => ({ posts: s.posts.map(p => p.id === id ? { ...p, status: 'scheduled' } : p) }));
+  deletePost = (id) => { if (this.isAdmin) { this.setState(s => ({ posts: s.posts.filter(p => p.id !== id) })); this.scheduleSave(); } };
+  approvePost = (id) => { this.setState(s => ({ posts: s.posts.map(p => p.id === id ? { ...p, status: 'scheduled' } : p) })); this.scheduleSave(); };
   openChangeRequest = (id) => this.setState({ changeRequestModal: { postId: id, note: '' } });
   onChangeRequestNoteChange = (e) => this.setState(s => ({ changeRequestModal: { ...s.changeRequestModal, note: e.target.value } }));
   closeChangeRequest = () => this.setState({ changeRequestModal: null });
@@ -1032,6 +959,7 @@ class Component extends DCLogic {
       posts: s.posts.map(p => p.id === m.postId ? { ...p, status: 'changes-requested', clientNote: m.note.trim() } : p),
       changeRequestModal: null,
     }));
+    this.scheduleSave();
   };
   checkStatus = (id) => {
     if (!this.isAdmin) return;
@@ -1040,9 +968,10 @@ class Component extends DCLogic {
     setTimeout(() => {
       const result = Math.random() < rate ? 'posted' : 'missed';
       this.setState(s => ({ posts: s.posts.map(p => p.id === id ? { ...p, status: result, checkedAt: new Date().toISOString() } : p), checkingId: null }));
+      this.scheduleSave();
     }, 1200);
   };
-  onStrategyChange = (key, val) => this.setState(s => ({ strategyNotes: { ...s.strategyNotes, [key]: val } }));
+  onStrategyChange = (key, val) => { this.setState(s => ({ strategyNotes: { ...s.strategyNotes, [key]: val } })); this.scheduleSave(); };
   exportPdf = () => window.print();
 
   augment(p) {
@@ -1233,22 +1162,23 @@ class Component extends DCLogic {
     const adminUsernameDraft = this.state.adminUsernameDraft !== null ? this.state.adminUsernameDraft : this.effectiveAdminUsername;
     const adminPasswordDraft = this.state.adminPasswordDraft !== null ? this.state.adminPasswordDraft : this.effectiveAdminPassword;
 
-    const driveStatus = this.state.driveStatus;
-    const driveBusy = driveStatus === 'loading' || driveStatus === 'saving';
-    let driveStatusLabel = 'Connected';
-    let driveStatusShort = 'Connected';
-    if (driveStatus === 'loading') { driveStatusLabel = 'Loading your data from Drive…'; driveStatusShort = 'Loading…'; }
-    else if (driveStatus === 'saving') { driveStatusLabel = 'Saving to Drive…'; driveStatusShort = 'Saving…'; }
-    else if (this.state.driveLastSyncedAt) {
-      const t = new Date(this.state.driveLastSyncedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-      driveStatusLabel = 'Connected — last synced ' + t;
-      driveStatusShort = 'Synced ' + t;
+    const syncStatus = this.state.syncStatus;
+    const syncBusy = syncStatus === 'loading' || syncStatus === 'saving';
+    let syncStatusLabel = 'Synced';
+    let syncStatusShort = 'Synced';
+    if (syncStatus === 'loading') { syncStatusLabel = 'Loading your data…'; syncStatusShort = 'Loading…'; }
+    else if (syncStatus === 'saving') { syncStatusLabel = 'Saving…'; syncStatusShort = 'Saving…'; }
+    else if (syncStatus === 'error') { syncStatusLabel = 'Sync error'; syncStatusShort = 'Sync error'; }
+    else if (this.state.lastSyncedAt) {
+      const t = new Date(this.state.lastSyncedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      syncStatusLabel = 'Synced — last saved ' + t;
+      syncStatusShort = 'Synced ' + t;
     } else {
-      driveStatusLabel = 'Connected — waiting for first sync…';
+      syncStatusLabel = 'Waiting for first sync…';
     }
-    const adminLoginCaption = this.state.driveConnected
-      ? 'Synced to Google Drive — changes save automatically.'
-      : 'Not synced — connect Google Drive above to save changes across devices.';
+    const adminLoginCaption = this.state.syncStatus === 'error'
+      ? 'Could not reach the database — changes are only saved in this tab right now.'
+      : 'Changes save automatically to the cloud database.';
 
     const clientCards = clients.map(c => ({
       id: c.id, name: c.name,
@@ -1372,15 +1302,12 @@ class Component extends DCLogic {
       closeChangeRequest: this.closeChangeRequest,
       submitChangeRequest: this.submitChangeRequest,
       changeRequestSaveDisabled: this.state.changeRequestModal ? !this.state.changeRequestModal.note.trim() : true,
-      driveConnected: this.state.driveConnected,
-      driveDisconnected: !this.state.driveConnected,
-      driveStatusLabel,
-      driveErrorMsg: this.state.driveError,
-      driveBusy,
-      connectDrive: this.connectDrive,
-      disconnectDrive: this.disconnectDrive,
-      driveSaveNow: this.driveSave,
-      driveSidebarLabel: isAdmin ? (this.state.driveConnected ? driveStatusShort : 'Drive not connected') : '',
+      syncStatusLabel,
+      syncErrorMsg: this.state.syncError,
+      syncBusy,
+      syncNow: this.syncNow,
+      sidebarSyncLabel: isAdmin ? syncStatusShort : '',
+      appDataLoading: !this.state.appDataLoaded,
     };
   }
 }
