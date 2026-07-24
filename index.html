@@ -168,7 +168,12 @@
         <div class="card elev-sm" style="max-width:480px;gap:var(--space-3);">
           <h3 style="margin:0;">Add your first client</h3>
           <p style="margin:0;font-size:13px;color:var(--color-neutral-600);">Livali SMD manages each client's calendar separately. Add a client account to start planning posts.</p>
-          <button class="btn btn-primary" style="align-self:flex-start;" onClick="{{ goToClients }}"><i class="ph ph-plus"></i>Add a client</button>
+          <sc-if value="{{ canManageClients }}" hint-placeholder-val="{{ false }}">
+            <button class="btn btn-primary" style="align-self:flex-start;" onClick="{{ goToClients }}"><i class="ph ph-plus"></i>Add a client</button>
+          </sc-if>
+          <sc-if value="{{ cannotManageClients }}" hint-placeholder-val="{{ true }}">
+            <p style="margin:0;font-size:13px;color:var(--color-neutral-600);">Ask an admin to add a client account.</p>
+          </sc-if>
         </div>
       </sc-if>
 
@@ -207,7 +212,11 @@
                         <div style="font-size:12px;color:var(--color-accent);display:flex;gap:4px;align-items:flex-start;margin-top:2px;"><i class="ph ph-chat-centered-text" style="flex:none;margin-top:1px;"></i><span>{{ p.clientNote }}</span></div>
                       </sc-if>
                     </div>
-                    <span class="tag {{ p.statusTagClass }}" style="{{ p.statusStyle }}"><i class="ph {{ p.statusIcon }}"></i> {{ p.statusLabel }}</span>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                      <sc-for list="{{ p.statusChips }}" as="sc" hint-placeholder-count="1">
+                        <span class="tag {{ sc.tagClass }}" style="{{ sc.style }}"><i class="ph {{ sc.icon }}"></i> {{ sc.label }}</span>
+                      </sc-for>
+                    </div>
                     <sc-if value="{{ p.canApprove }}" hint-placeholder-val="{{ false }}">
                       <button class="btn btn-ghost no-print" onClick="{{ p.onApprove }}">Approve</button>
                     </sc-if>
@@ -294,7 +303,9 @@
                       <div style="font-size:11px;color:var(--color-accent);display:flex;gap:4px;align-items:flex-start;margin-bottom:4px;"><i class="ph ph-chat-centered-text" style="flex:none;margin-top:1px;"></i><span>{{ post.clientNote }}</span></div>
                     </sc-if>
                     <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-                      <span class="tag {{ post.statusTagClass }}" style="{{ post.statusStyle }}"><i class="ph {{ post.statusIcon }}"></i> {{ post.statusLabel }}</span>
+                      <sc-for list="{{ post.statusChips }}" as="sc" hint-placeholder-count="1">
+                        <span class="tag {{ sc.tagClass }}" style="{{ sc.style }}"><i class="ph {{ sc.icon }}"></i> {{ sc.label }}</span>
+                      </sc-for>
                       <sc-if value="{{ post.canApprove }}" hint-placeholder-val="{{ false }}">
                         <button class="btn btn-ghost no-print" style="font-size:11px;padding:0;" onClick="{{ post.onApprove }}">Approve</button>
                       </sc-if>
@@ -355,7 +366,11 @@
                     <td>{{ p.assigneeLabel }}</td>
                     <td>
                       <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;">
-                        <span class="tag {{ p.statusTagClass }}" style="{{ p.statusStyle }}"><i class="ph {{ p.statusIcon }}"></i> {{ p.statusLabel }}</span>
+                        <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                          <sc-for list="{{ p.statusChips }}" as="sc" hint-placeholder-count="1">
+                            <span class="tag {{ sc.tagClass }}" style="{{ sc.style }}"><i class="ph {{ sc.icon }}"></i> {{ sc.label }}</span>
+                          </sc-for>
+                        </div>
                         <sc-if value="{{ p.canApprove }}" hint-placeholder-val="{{ false }}">
                           <button class="btn btn-ghost no-print" style="font-size:11px;padding:0;" onClick="{{ p.onApprove }}">Approve</button>
                         </sc-if>
@@ -449,6 +464,27 @@
             <div style="display:flex;align-items:center;gap:var(--space-3);">
               <button class="btn btn-primary" onClick="{{ saveAdminCredentials }}" disabled="{{ saveAdminDisabled }}">Update admin login</button>
               <div style="font-size:11px;color:var(--color-neutral-600);">{{ adminLoginCaption }}</div>
+            </div>
+          </div>
+          <div class="card elev-sm" style="gap:var(--space-3);max-width:480px;">
+            <h4 style="margin:0;">Editor login</h4>
+            <p style="margin:0;font-size:12px;color:var(--color-neutral-600);">Editors can manage posts and content across all clients, but can't manage client accounts or admin/editor logins.</p>
+            <div style="display:flex;flex-wrap:wrap;gap:var(--space-3);">
+              <div class="field" style="flex:1;min-width:140px;margin:0;">
+                <label>Username</label>
+                <input class="input" type="text" value="{{ editorUsernameDraft }}" onChange="{{ onEditorUsernameDraftChange }}"/>
+              </div>
+              <div class="field" style="flex:1;min-width:140px;margin:0;">
+                <label>Password</label>
+                <input class="input" type="text" value="{{ editorPasswordDraft }}" onChange="{{ onEditorPasswordDraftChange }}"/>
+              </div>
+            </div>
+            <sc-if value="{{ editorCredentialError }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:12px;color:var(--color-accent);">{{ editorCredentialError }}</div>
+            </sc-if>
+            <div style="display:flex;align-items:center;gap:var(--space-3);">
+              <button class="btn btn-primary" onClick="{{ saveEditorCredentials }}" disabled="{{ saveEditorDisabled }}">Update editor login</button>
+              <div style="font-size:11px;color:var(--color-neutral-600);">{{ editorLoginCaption }}</div>
             </div>
           </div>
           <div class="card elev-sm" style="gap:var(--space-3);">
@@ -547,11 +583,11 @@
             <div class="field"><label>Assignee</label><input class="input" type="text" value="{{ draftAssignee }}" onChange="{{ onDraftAssignee }}" placeholder="Who's on it"/></div>
           </div>
           <div class="field">
-            <label>Status</label>
+            <label>Status — select one or more</label>
             <div class="seg status-seg">
               <sc-for list="{{ statusOptions }}" as="s" hint-placeholder-count="4">
                 <label class="seg-opt">
-                  <input type="radio" name="draftstatus" checked="{{ s.active }}" onChange="{{ s.onClick }}"/>{{ s.label }}
+                  <input type="checkbox" checked="{{ s.active }}" onChange="{{ s.onClick }}"/>{{ s.label }}
                 </label>
               </sc-for>
             </div>
@@ -593,8 +629,10 @@
             </sc-for>
             <span style="font-size:13px;color:var(--color-neutral-600);">{{ viewPostPlatformLabel }} · {{ viewPostDateLabel }} · {{ viewPostTime12 }}</span>
           </div>
-          <div>
-            <span class="tag {{ viewPostStatusTagClass }}" style="{{ viewPostStatusStyle }}"><i class="ph {{ viewPostStatusIcon }}"></i> {{ viewPostStatusLabel }}</span>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;">
+            <sc-for list="{{ viewPostStatusChips }}" as="sc" hint-placeholder-count="1">
+              <span class="tag {{ sc.tagClass }}" style="{{ sc.style }}"><i class="ph {{ sc.icon }}"></i> {{ sc.label }}</span>
+            </sc-for>
           </div>
           <sc-if value="{{ viewPostHasMedia }}" hint-placeholder-val="{{ false }}">
             <div style="position:relative;">
@@ -716,7 +754,7 @@ function expireMedia(posts) {
   const now = Date.now();
   let changed = false;
   const next = posts.map(p => {
-    if (p.mediaDataUrl && p.status === 'posted' && p.checkedAt && (now - new Date(p.checkedAt).getTime() > MEDIA_EXPIRY_MS)) {
+    if (p.mediaDataUrl && postStatuses(p).includes('posted') && p.checkedAt && (now - new Date(p.checkedAt).getTime() > MEDIA_EXPIRY_MS)) {
       changed = true;
       return { ...p, mediaDataUrl: null, mediaType: null, mediaName: null, mediaExpired: true };
     }
@@ -745,6 +783,16 @@ function postPlatforms(p) {
   if (p.platforms && p.platforms.length) return p.platforms;
   if (p.platform) return [p.platform];
   return ['facebook'];
+}
+function postStatuses(p) {
+  if (p.statuses && p.statuses.length) return p.statuses;
+  if (p.status) return [p.status];
+  return ['needs-approval'];
+}
+function transitionStatuses(current, addId, removeIds) {
+  const next = current.filter(s => !removeIds.includes(s));
+  if (!next.includes(addId)) next.push(addId);
+  return next;
 }
 
 class Component extends DCLogic {
@@ -776,6 +824,11 @@ class Component extends DCLogic {
     adminUsernameDraft: null,
     adminPasswordDraft: null,
     adminCredentialError: '',
+    editorUsernameOverride: null,
+    editorPasswordOverride: null,
+    editorUsernameDraft: null,
+    editorPasswordDraft: null,
+    editorCredentialError: '',
     modalMediaError: '',
     appDataLoaded: false,
     syncStatus: 'idle',
@@ -788,15 +841,19 @@ class Component extends DCLogic {
   saveTimer = null;
 
   get isAdmin() { return !!this.state.session && this.state.session.role === 'admin'; }
+  get isEditor() { return !!this.state.session && this.state.session.role === 'editor'; }
   get view() {
     const v = this.state.view || this.props.defaultView || 'calendar';
-    if (!this.isAdmin && (v === 'strategy' || v === 'clients')) return 'overview';
+    if (!this.isAdmin && v === 'clients') return 'overview';
+    if (!this.isAdmin && !this.isEditor && v === 'strategy') return 'overview';
     return v;
   }
   get calendarMode() { return this.state.calendarMode || this.props.defaultCalendarMode || 'month'; }
-  get effectiveClientId() { return this.isAdmin ? this.state.adminViewClientId : (this.state.session ? this.state.session.clientId : null); }
+  get effectiveClientId() { return (this.isAdmin || this.isEditor) ? this.state.adminViewClientId : (this.state.session ? this.state.session.clientId : null); }
   get effectiveAdminUsername() { return this.state.adminUsernameOverride || this.props.adminUsername || 'admin'; }
   get effectiveAdminPassword() { return this.state.adminPasswordOverride || this.props.adminPassword || 'admin123!'; }
+  get effectiveEditorUsername() { return this.state.editorUsernameOverride || this.props.editorUsername || 'editor'; }
+  get effectiveEditorPassword() { return this.state.editorPasswordOverride || this.props.editorPassword || 'editor123!'; }
 
   setView = (id) => this.setState({ view: id });
   setMonthMode = () => this.setState({ calendarMode: 'month' });
@@ -831,6 +888,12 @@ class Component extends DCLogic {
     const adminPass = this.effectiveAdminPassword;
     if (u.toLowerCase() === adminUser.toLowerCase() && p === adminPass) {
       this.setState({ session: { role: 'admin' }, loginUsername: '', loginPassword: '', loginError: '' });
+      return;
+    }
+    const editorUser = this.effectiveEditorUsername;
+    const editorPass = this.effectiveEditorPassword;
+    if (u.toLowerCase() === editorUser.toLowerCase() && p === editorPass) {
+      this.setState({ session: { role: 'editor' }, loginUsername: '', loginPassword: '', loginError: '' });
       return;
     }
     const client = this.state.clients.find(c => c.username && c.username.toLowerCase() === u.toLowerCase() && c.password === p);
@@ -872,6 +935,8 @@ class Component extends DCLogic {
         strategyNotes: raw.strategyNotes || {},
         adminUsernameOverride: raw.adminUsernameOverride || null,
         adminPasswordOverride: raw.adminPasswordOverride || null,
+        editorUsernameOverride: raw.editorUsernameOverride || null,
+        editorPasswordOverride: raw.editorPasswordOverride || null,
         syncStatus: 'idle',
         syncError: '',
         lastSyncedAt: new Date().toISOString(),
@@ -901,6 +966,8 @@ class Component extends DCLogic {
       strategyNotes: this.state.strategyNotes,
       adminUsernameOverride: this.state.adminUsernameOverride,
       adminPasswordOverride: this.state.adminPasswordOverride,
+      editorUsernameOverride: this.state.editorUsernameOverride,
+      editorPasswordOverride: this.state.editorPasswordOverride,
     };
     try {
       const { error } = await this.sb.from('app_state').update({ data: payload, updated_at: new Date().toISOString() }).eq('id', 'singleton');
@@ -925,12 +992,25 @@ class Component extends DCLogic {
   onAdminUsernameDraftChange = (e) => this.setState({ adminUsernameDraft: e.target.value, adminCredentialError: '' });
   onAdminPasswordDraftChange = (e) => this.setState({ adminPasswordDraft: e.target.value, adminCredentialError: '' });
   saveAdminCredentials = () => {
+    if (!this.isAdmin) return;
     const username = (this.state.adminUsernameDraft !== null ? this.state.adminUsernameDraft : this.effectiveAdminUsername).trim();
     const password = this.state.adminPasswordDraft !== null ? this.state.adminPasswordDraft : this.effectiveAdminPassword;
     if (!username || !password) { this.setState({ adminCredentialError: 'Username and password cannot be empty.' }); return; }
-    const taken = this.state.clients.some(c => c.username.toLowerCase() === username.toLowerCase());
-    if (taken) { this.setState({ adminCredentialError: 'That username is already used by a client account.' }); return; }
+    const taken = username.toLowerCase() === this.effectiveEditorUsername.toLowerCase() || this.state.clients.some(c => c.username.toLowerCase() === username.toLowerCase());
+    if (taken) { this.setState({ adminCredentialError: 'That username is already taken.' }); return; }
     this.setState({ adminUsernameOverride: username, adminPasswordOverride: password, adminUsernameDraft: null, adminPasswordDraft: null, adminCredentialError: '' });
+    this.scheduleSave();
+  };
+  onEditorUsernameDraftChange = (e) => this.setState({ editorUsernameDraft: e.target.value, editorCredentialError: '' });
+  onEditorPasswordDraftChange = (e) => this.setState({ editorPasswordDraft: e.target.value, editorCredentialError: '' });
+  saveEditorCredentials = () => {
+    if (!this.isAdmin) return;
+    const username = (this.state.editorUsernameDraft !== null ? this.state.editorUsernameDraft : this.effectiveEditorUsername).trim();
+    const password = this.state.editorPasswordDraft !== null ? this.state.editorPasswordDraft : this.effectiveEditorPassword;
+    if (!username || !password) { this.setState({ editorCredentialError: 'Username and password cannot be empty.' }); return; }
+    const taken = username.toLowerCase() === this.effectiveAdminUsername.toLowerCase() || this.state.clients.some(c => c.username.toLowerCase() === username.toLowerCase());
+    if (taken) { this.setState({ editorCredentialError: 'That username is already taken.' }); return; }
+    this.setState({ editorUsernameOverride: username, editorPasswordOverride: password, editorUsernameDraft: null, editorPasswordDraft: null, editorCredentialError: '' });
     this.scheduleSave();
   };
   addClientClick = () => {
@@ -938,7 +1018,7 @@ class Component extends DCLogic {
     const username = this.state.newClientUsername.trim();
     const password = this.state.newClientPassword;
     if (!name || !username || !password) return;
-    const taken = username.toLowerCase() === this.effectiveAdminUsername.toLowerCase() || this.state.clients.some(c => c.username.toLowerCase() === username.toLowerCase());
+    const taken = username.toLowerCase() === this.effectiveAdminUsername.toLowerCase() || username.toLowerCase() === this.effectiveEditorUsername.toLowerCase() || this.state.clients.some(c => c.username.toLowerCase() === username.toLowerCase());
     if (taken) { this.setState({ newClientError: 'That username is already taken.' }); return; }
     const id = 'c' + Date.now() + Math.random().toString(36).slice(2, 5);
     this.setState(s => ({ clients: s.clients.concat({ id, name, username, password }), adminViewClientId: s.adminViewClientId || id, newClientName: '', newClientUsername: '', newClientPassword: '', newClientError: '' }));
@@ -957,17 +1037,18 @@ class Component extends DCLogic {
   };
 
   openNew = (dateISO) => {
-    if (!this.isAdmin || !this.effectiveClientId) return;
+    if (!this.isAdmin && !this.isEditor) return;
+    if (!this.effectiveClientId) return;
     const d = typeof dateISO === 'string' ? dateISO : toISO(this.state.viewDate);
     this.setState({
-      modal: { editingId: null, clientId: this.effectiveClientId, platforms: ['facebook'], date: d, time: '09:00', title: '', caption: '', mediaDataUrl: null, mediaType: null, mediaName: null, pillar: '', assignee: '', status: 'needs-approval' },
+      modal: { editingId: null, clientId: this.effectiveClientId, platforms: ['facebook'], date: d, time: '09:00', title: '', caption: '', mediaDataUrl: null, mediaType: null, mediaName: null, pillar: '', assignee: '', statuses: ['needs-approval'] },
       modalMediaError: '',
     });
   };
   openEdit = (post) => {
-    if (!this.isAdmin) return;
+    if (!this.isAdmin && !this.isEditor) return;
     this.setState({
-      modal: { editingId: post.id, clientId: post.clientId, platforms: postPlatforms(post), date: post.date, time: post.time, title: post.title, caption: post.caption || '', mediaDataUrl: post.mediaDataUrl || null, mediaType: post.mediaType || null, mediaName: post.mediaName || null, mediaExpired: !!post.mediaExpired, pillar: post.pillar || '', assignee: post.assignee || '', status: post.status },
+      modal: { editingId: post.id, clientId: post.clientId, platforms: postPlatforms(post), date: post.date, time: post.time, title: post.title, caption: post.caption || '', mediaDataUrl: post.mediaDataUrl || null, mediaType: post.mediaType || null, mediaName: post.mediaName || null, mediaExpired: !!post.mediaExpired, pillar: post.pillar || '', assignee: post.assignee || '', statuses: postStatuses(post) },
       modalMediaError: '',
     });
   };
@@ -977,6 +1058,11 @@ class Component extends DCLogic {
     const cur = s.modal.platforms;
     const next = cur.includes(id) ? cur.filter(x => x !== id) : cur.concat(id);
     return { modal: { ...s.modal, platforms: next } };
+  });
+  toggleDraftStatus = (id) => this.setState(s => {
+    const cur = s.modal.statuses;
+    const next = cur.includes(id) ? cur.filter(x => x !== id) : cur.concat(id);
+    return { modal: { ...s.modal, statuses: next } };
   });
   onDraftCaptionChange = (e) => this.setDraftField('caption', e.target.value);
   onDraftMediaChange = (e) => {
@@ -999,19 +1085,19 @@ class Component extends DCLogic {
   removeDraftMedia = () => this.setState(s => ({ modal: { ...s.modal, mediaDataUrl: null, mediaType: null, mediaName: null } }));
   saveDraft = () => {
     const m = this.state.modal;
-    if (!m || !m.title.trim()) return;
+    if (!m || !m.title.trim() || !m.statuses.length) return;
     if (m.editingId) {
       this.setState(s => ({
         posts: s.posts.map(p => {
           if (p.id !== m.editingId) return p;
-          const becamePosted = m.status === 'posted' && p.status !== 'posted';
+          const becamePosted = m.statuses.includes('posted') && !postStatuses(p).includes('posted');
           return { ...p, ...m, mediaExpired: m.mediaDataUrl ? false : p.mediaExpired, checkedAt: becamePosted ? new Date().toISOString() : p.checkedAt };
         }),
         modal: null,
       }));
     } else {
       const id = 'p' + Date.now() + Math.random().toString(36).slice(2, 6);
-      const checkedAt = m.status === 'posted' ? new Date().toISOString() : null;
+      const checkedAt = m.statuses.includes('posted') ? new Date().toISOString() : null;
       this.setState(s => ({ posts: s.posts.concat({ id, ...m, checkedAt }), modal: null }));
     }
     this.scheduleSave();
@@ -1022,8 +1108,11 @@ class Component extends DCLogic {
     this.setState(s => ({ posts: s.posts.filter(p => p.id !== m.editingId), modal: null }));
     this.scheduleSave();
   };
-  deletePost = (id) => { if (this.isAdmin) { this.setState(s => ({ posts: s.posts.filter(p => p.id !== id) })); this.scheduleSave(); } };
-  approvePost = (id) => { this.setState(s => ({ posts: s.posts.map(p => p.id === id ? { ...p, status: 'scheduled' } : p) })); this.scheduleSave(); };
+  deletePost = (id) => { if (this.isAdmin || this.isEditor) { this.setState(s => ({ posts: s.posts.filter(p => p.id !== id) })); this.scheduleSave(); } };
+  approvePost = (id) => {
+    this.setState(s => ({ posts: s.posts.map(p => p.id === id ? { ...p, statuses: transitionStatuses(postStatuses(p), 'scheduled', ['needs-approval', 'changes-requested']) } : p) }));
+    this.scheduleSave();
+  };
   openView = (post) => this.setState({ viewPostId: post.id, lightboxOpen: false });
   closeView = () => this.setState({ viewPostId: null, lightboxOpen: false });
   openLightbox = () => this.setState({ lightboxOpen: true });
@@ -1036,18 +1125,18 @@ class Component extends DCLogic {
     const m = this.state.changeRequestModal;
     if (!m || !m.note.trim()) return;
     this.setState(s => ({
-      posts: s.posts.map(p => p.id === m.postId ? { ...p, status: 'changes-requested', clientNote: m.note.trim() } : p),
+      posts: s.posts.map(p => p.id === m.postId ? { ...p, statuses: transitionStatuses(postStatuses(p), 'changes-requested', ['needs-approval']), clientNote: m.note.trim() } : p),
       changeRequestModal: null,
     }));
     this.scheduleSave();
   };
   checkStatus = (id) => {
-    if (!this.isAdmin) return;
+    if (!this.isAdmin && !this.isEditor) return;
     this.setState({ checkingId: id });
     const rate = (this.props.checkSuccessRate ?? 75) / 100;
     setTimeout(() => {
       const result = Math.random() < rate ? 'posted' : 'missed';
-      this.setState(s => ({ posts: s.posts.map(p => p.id === id ? { ...p, status: result, checkedAt: new Date().toISOString() } : p), checkingId: null }));
+      this.setState(s => ({ posts: s.posts.map(p => p.id === id ? { ...p, statuses: transitionStatuses(postStatuses(p), result, ['scheduled']), checkedAt: new Date().toISOString() } : p), checkingId: null }));
       this.scheduleSave();
     }, 1200);
   };
@@ -1057,9 +1146,10 @@ class Component extends DCLogic {
   augment(p) {
     const plats = postPlatforms(p);
     const metas = plats.map(id => PLATFORM_META[id] || PLATFORM_META.facebook);
-    const sm = STATUS_META[p.status] || STATUS_META.scheduled;
+    const statusIds = postStatuses(p);
+    const statusMetas = statusIds.map(id => STATUS_META[id] || STATUS_META.scheduled);
     const isChecking = this.state.checkingId === p.id;
-    const canEdit = this.isAdmin;
+    const canEdit = this.isAdmin || this.isEditor;
     const hasMedia = !!p.mediaDataUrl;
     return {
       ...p,
@@ -1075,20 +1165,18 @@ class Component extends DCLogic {
       mediaDataUrl: p.mediaDataUrl || '',
       hasCaption: !!(p.caption && p.caption.trim()),
       caption: p.caption || '',
-      statusLabel: sm.label,
-      statusIcon: sm.icon,
-      statusTagClass: sm.tagClass,
-      statusStyle: sm.extraStyle,
+      statuses: statusIds,
+      statusChips: statusMetas.map(m => ({ label: m.label, icon: m.icon, tagClass: m.tagClass, style: m.extraStyle })),
       time12: time12(p.time),
       dateLabel: dateLabel(p.date),
       pillarLabel: p.pillar || '—',
       assigneeLabel: p.assignee || '—',
-      canApprove: p.status === 'needs-approval',
-      canRequestChanges: p.status === 'needs-approval',
-      hasClientNote: p.status === 'changes-requested' && !!p.clientNote,
+      canApprove: statusIds.includes('needs-approval'),
+      canRequestChanges: statusIds.includes('needs-approval'),
+      hasClientNote: statusIds.includes('changes-requested') && !!p.clientNote,
       clientNote: p.clientNote || '',
       canEdit,
-      canCheck: canEdit && p.status === 'scheduled' && !isChecking,
+      canCheck: canEdit && statusIds.includes('scheduled') && !isChecking,
       isChecking,
       hasCheckedLabel: !!p.checkedAt && !isChecking,
       checkedLabel: p.checkedAt ? new Date(p.checkedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '',
@@ -1110,10 +1198,11 @@ class Component extends DCLogic {
     const statusActive = this.state.statusActive;
     const today = new Date();
     const isAdmin = this.isAdmin;
+    const isEditor = this.isEditor;
     const clients = this.state.clients;
     const effectiveClientId = this.effectiveClientId;
     const effectiveClient = clients.find(c => c.id === effectiveClientId);
-    const needsClientSetup = isAdmin && !effectiveClientId;
+    const needsClientSetup = (isAdmin || isEditor) && !effectiveClientId;
 
     const scopedPosts = this.state.posts.filter(p => p.clientId === effectiveClientId);
     const visiblePosts = scopedPosts.filter(p => postPlatforms(p).some(pl => platformActive.includes(pl)));
@@ -1126,7 +1215,8 @@ class Component extends DCLogic {
       { id: 'calendar', label: 'Calendar', icon: 'ph-calendar-blank' },
       { id: 'list', label: 'List', icon: 'ph-list-bullets' },
     ];
-    if (isAdmin) viewTabDefs.push({ id: 'strategy', label: 'Strategy', icon: 'ph-target' }, { id: 'clients', label: 'Clients', icon: 'ph-users-three' });
+    if (isAdmin || isEditor) viewTabDefs.push({ id: 'strategy', label: 'Strategy', icon: 'ph-target' });
+    if (isAdmin) viewTabDefs.push({ id: 'clients', label: 'Clients', icon: 'ph-users-three' });
     const viewTabs = viewTabDefs.map(t => ({
       ...t,
       onClick: () => this.setView(t.id),
@@ -1149,7 +1239,7 @@ class Component extends DCLogic {
     });
 
     const statCounts = { 'needs-approval': 0, 'changes-requested': 0, scheduled: 0, posted: 0, missed: 0 };
-    augmentedAll.forEach(p => { statCounts[p.status] = (statCounts[p.status] || 0) + 1; });
+    augmentedAll.forEach(p => { p.statuses.forEach(s => { statCounts[s] = (statCounts[s] || 0) + 1; }); });
     const statCards = [
       { label: 'Needs Approval', count: statCounts['needs-approval'], icon: 'ph-hourglass', hint: 'awaiting review' },
       { label: 'Changes Requested', count: statCounts['changes-requested'], icon: 'ph-chat-centered-text', hint: 'client left feedback' },
@@ -1158,7 +1248,7 @@ class Component extends DCLogic {
       { label: 'Missed', count: statCounts.missed, icon: 'ph-x-circle', hint: 'did not go out' },
     ];
     const todayISOstr = toISO(today);
-    const upcomingPosts = augmentedAll.filter(p => (p.status === 'scheduled' || p.status === 'needs-approval' || p.status === 'changes-requested') && p.date >= todayISOstr)
+    const upcomingPosts = augmentedAll.filter(p => p.statuses.some(s => s === 'scheduled' || s === 'needs-approval' || s === 'changes-requested') && p.date >= todayISOstr)
       .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time)).slice(0, 6);
 
     let monthWeeks = [];
@@ -1178,7 +1268,7 @@ class Component extends DCLogic {
           const isToday = isSameDay(cur, today);
           days.push({
             key: iso, dayNum: cur.getDate(), dateISO: iso, posts: dayPosts,
-            showAdd: isAdmin,
+            showAdd: isAdmin || isEditor,
             onAdd: () => this.openNew(iso),
             cellStyle: { background: 'var(--color-surface)', padding: '8px', minHeight: '96px', opacity: inMonth ? 1 : 0.4, display: 'flex', flexDirection: 'column', gap: '4px' },
             dayNumStyle: { fontSize: '13px', color: isToday ? 'var(--color-accent)' : 'var(--color-text)', fontWeight: isToday ? 600 : 400 },
@@ -1197,7 +1287,7 @@ class Component extends DCLogic {
         const iso = toISO(d);
         const dayPosts = augmentedAll.filter(p => p.date === iso).sort((a, b) => a.time.localeCompare(b.time));
         const isToday = isSameDay(d, today);
-        weekCells.push({ key: iso, weekdayLabel: WEEKDAY_LABELS[i], dayLabel: d.getDate(), posts: dayPosts, noPosts: dayPosts.length === 0, showAdd: isAdmin, onAdd: () => this.openNew(iso), cardStyle: isToday ? 'border:1px solid var(--color-accent);' : '' });
+        weekCells.push({ key: iso, weekdayLabel: WEEKDAY_LABELS[i], dayLabel: d.getDate(), posts: dayPosts, noPosts: dayPosts.length === 0, showAdd: isAdmin || isEditor, onAdd: () => this.openNew(iso), cardStyle: isToday ? 'border:1px solid var(--color-accent);' : '' });
       }
     }
 
@@ -1214,7 +1304,7 @@ class Component extends DCLogic {
       const meta = STATUS_META[id];
       return { id, label: meta.label, class: active ? meta.tagClass : 'tag-neutral', onClick: () => this.toggleStatus(id), style: active ? '' : 'opacity:0.4;' };
     });
-    const listPosts = augmentedAll.filter(p => statusActive.includes(p.status)).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+    const listPosts = augmentedAll.filter(p => p.statuses.some(s => statusActive.includes(s))).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
 
     let strategyKey = '';
     let periodPosts = [];
@@ -1238,12 +1328,14 @@ class Component extends DCLogic {
       const active = modal.platforms.includes(id);
       return { id, label: meta.label, icon: meta.icon, onClick: () => this.toggleDraftPlatform(id), style: { color: active ? 'var(--color-accent)' : 'var(--color-text)', border: '1px solid ' + (active ? 'var(--color-accent)' : 'var(--color-divider)') } };
     }) : [];
-    const statusOptions = modal ? STATUS_ORDER.map(id => ({ id, label: STATUS_META[id].label, active: modal.status === id, onClick: () => this.setDraftField('status', id) })) : [];
+    const statusOptions = modal ? STATUS_ORDER.map(id => ({ id, label: STATUS_META[id].label, active: modal.statuses.includes(id), onClick: () => this.toggleDraftStatus(id) })) : [];
 
-    const roleCaption = isAdmin ? 'Admin: full access' : 'Client: approve, request changes & export';
-    const currentAccountLabel = isAdmin ? 'Admin' : (effectiveClient ? effectiveClient.name : 'Client');
+    const roleCaption = isAdmin ? 'Admin: full access' : isEditor ? 'Editor: manage posts & content' : 'Client: approve, request changes & export';
+    const currentAccountLabel = isAdmin ? 'Admin' : isEditor ? 'Editor' : (effectiveClient ? effectiveClient.name : 'Client');
     const adminUsernameDraft = this.state.adminUsernameDraft !== null ? this.state.adminUsernameDraft : this.effectiveAdminUsername;
     const adminPasswordDraft = this.state.adminPasswordDraft !== null ? this.state.adminPasswordDraft : this.effectiveAdminPassword;
+    const editorUsernameDraft = this.state.editorUsernameDraft !== null ? this.state.editorUsernameDraft : this.effectiveEditorUsername;
+    const editorPasswordDraft = this.state.editorPasswordDraft !== null ? this.state.editorPasswordDraft : this.effectiveEditorPassword;
 
     const syncStatus = this.state.syncStatus;
     const syncBusy = syncStatus === 'loading' || syncStatus === 'saving';
@@ -1262,6 +1354,7 @@ class Component extends DCLogic {
     const adminLoginCaption = this.state.syncStatus === 'error'
       ? 'Could not reach the database — changes are only saved in this tab right now.'
       : 'Changes save automatically to the cloud database.';
+    const editorLoginCaption = adminLoginCaption;
 
     const clientCards = clients.map(c => ({
       id: c.id, name: c.name,
@@ -1294,9 +1387,9 @@ class Component extends DCLogic {
       platformChips,
       exportPdf: this.exportPdf,
       showExport: view === 'calendar' && !needsClientSetup,
-      showNewPost: isAdmin && !!effectiveClientId && (view === 'overview' || view === 'calendar' || view === 'list'),
+      showNewPost: (isAdmin || isEditor) && !!effectiveClientId && (view === 'overview' || view === 'calendar' || view === 'list'),
       openNew: () => this.openNew(),
-      showClientSwitcher: isAdmin && clients.length > 0 && view !== 'clients',
+      showClientSwitcher: (isAdmin || isEditor) && clients.length > 0 && view !== 'clients',
       clientSwitcherOptions: clients.map(c => ({ value: c.id, label: c.name })),
       clientSwitcherValue: this.state.adminViewClientId || '',
       onClientSwitch: this.onClientSwitch,
@@ -1354,7 +1447,7 @@ class Component extends DCLogic {
       onDraftPillar: (e) => this.setDraftField('pillar', e.target.value),
       onDraftAssignee: (e) => this.setDraftField('assignee', e.target.value),
       statusOptions,
-      saveDisabled: modal ? (!modal.title.trim() || !modal.platforms.length) : true,
+      saveDisabled: modal ? (!modal.title.trim() || !modal.platforms.length || !modal.statuses.length) : true,
       saveDraft: this.saveDraft,
       deleteDraft: this.deleteDraft,
       closeModal: this.closeModal,
@@ -1379,6 +1472,16 @@ class Component extends DCLogic {
       adminLoginCaption,
       saveAdminCredentials: this.saveAdminCredentials,
       saveAdminDisabled: !adminUsernameDraft.trim() || !adminPasswordDraft,
+      editorUsernameDraft,
+      onEditorUsernameDraftChange: this.onEditorUsernameDraftChange,
+      editorPasswordDraft,
+      onEditorPasswordDraftChange: this.onEditorPasswordDraftChange,
+      editorCredentialError: this.state.editorCredentialError,
+      editorLoginCaption,
+      saveEditorCredentials: this.saveEditorCredentials,
+      saveEditorDisabled: !editorUsernameDraft.trim() || !editorPasswordDraft,
+      canManageClients: isAdmin,
+      cannotManageClients: !isAdmin,
       changeRequestOpen: !!this.state.changeRequestModal,
       changeRequestNote: this.state.changeRequestModal ? this.state.changeRequestModal.note : '',
       onChangeRequestNoteChange: this.onChangeRequestNoteChange,
@@ -1392,10 +1495,7 @@ class Component extends DCLogic {
       viewPostPlatformLabel: viewPost ? viewPost.platformLabel : '',
       viewPostDateLabel: viewPost ? viewPost.dateLabel : '',
       viewPostTime12: viewPost ? viewPost.time12 : '',
-      viewPostStatusLabel: viewPost ? viewPost.statusLabel : '',
-      viewPostStatusIcon: viewPost ? viewPost.statusIcon : '',
-      viewPostStatusTagClass: viewPost ? viewPost.statusTagClass : '',
-      viewPostStatusStyle: viewPost ? viewPost.statusStyle : {},
+      viewPostStatusChips: viewPost ? viewPost.statusChips : [],
       viewPostHasMedia: viewPost ? viewPost.hasMedia : false,
       viewPostMediaIsImage: viewPost ? viewPost.mediaIsImage : false,
       viewPostMediaIsVideo: viewPost ? viewPost.mediaIsVideo : false,
