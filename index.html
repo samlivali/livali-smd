@@ -597,12 +597,18 @@
             <span class="tag {{ viewPostStatusTagClass }}" style="{{ viewPostStatusStyle }}"><i class="ph {{ viewPostStatusIcon }}"></i> {{ viewPostStatusLabel }}</span>
           </div>
           <sc-if value="{{ viewPostHasMedia }}" hint-placeholder-val="{{ false }}">
-            <sc-if value="{{ viewPostMediaIsImage }}" hint-placeholder-val="{{ true }}">
-              <img src="{{ viewPostMediaDataUrl }}" alt="" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--radius-md);"/>
-            </sc-if>
-            <sc-if value="{{ viewPostMediaIsVideo }}" hint-placeholder-val="{{ false }}">
-              <video src="{{ viewPostMediaDataUrl }}" controls style="width:100%;max-height:280px;border-radius:var(--radius-md);"></video>
-            </sc-if>
+            <div style="position:relative;">
+              <sc-if value="{{ viewPostMediaIsImage }}" hint-placeholder-val="{{ true }}">
+                <img src="{{ viewPostMediaDataUrl }}" alt="" onClick="{{ openLightbox }}" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--radius-md);cursor:pointer;"/>
+              </sc-if>
+              <sc-if value="{{ viewPostMediaIsVideo }}" hint-placeholder-val="{{ false }}">
+                <video src="{{ viewPostMediaDataUrl }}" controls style="width:100%;max-height:280px;border-radius:var(--radius-md);"></video>
+              </sc-if>
+              <button class="btn btn-secondary" onClick="{{ openLightbox }}" title="View fullscreen" style="position:absolute;top:8px;right:8px;padding:4px 8px;font-size:12px;line-height:1;"><i class="ph ph-arrows-out"></i></button>
+            </div>
+            <div>
+              <a href="{{ viewPostMediaDataUrl }}" download="{{ viewPostMediaName }}" class="btn btn-secondary" style="font-size:12px;padding:6px 10px;display:inline-flex;align-items:center;gap:4px;text-decoration:none;"><i class="ph ph-download-simple"></i>Download</a>
+            </div>
           </sc-if>
           <sc-if value="{{ viewPostMediaExpired }}" hint-placeholder-val="{{ false }}">
             <div style="font-size:12px;color:var(--color-neutral-500);display:flex;align-items:center;gap:4px;"><i class="ph ph-clock-countdown"></i>Media expired 48h after posting</div>
@@ -631,6 +637,22 @@
           </sc-if>
         </div>
       </div>
+      <sc-if value="{{ viewPostLightboxOpen }}" hint-placeholder-val="{{ false }}">
+        <div onClick="{{ onLightboxBackdropClick }}" style="position:fixed;inset:0;z-index:10;background:rgba(0,0,0,0.92);display:flex;align-items:center;justify-content:center;padding:var(--space-4);">
+          <div onClick="{{ stopProp }}" style="display:flex;flex-direction:column;align-items:center;gap:var(--space-3);max-width:94vw;max-height:94vh;">
+            <sc-if value="{{ viewPostMediaIsImage }}" hint-placeholder-val="{{ true }}">
+              <img src="{{ viewPostMediaDataUrl }}" alt="" style="max-width:94vw;max-height:80vh;object-fit:contain;border-radius:var(--radius-md);"/>
+            </sc-if>
+            <sc-if value="{{ viewPostMediaIsVideo }}" hint-placeholder-val="{{ false }}">
+              <video src="{{ viewPostMediaDataUrl }}" controls autoplay style="max-width:94vw;max-height:80vh;border-radius:var(--radius-md);"></video>
+            </sc-if>
+            <div style="display:flex;gap:var(--space-2);">
+              <a href="{{ viewPostMediaDataUrl }}" download="{{ viewPostMediaName }}" class="btn btn-primary" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;"><i class="ph ph-download-simple"></i>Download</a>
+              <button class="btn btn-secondary" onClick="{{ closeLightbox }}">Close</button>
+            </div>
+          </div>
+        </div>
+      </sc-if>
     </div>
   </sc-if>
   <datalist id="pillar-suggestions">
@@ -739,6 +761,7 @@ class Component extends DCLogic {
     modal: null,
     changeRequestModal: null,
     viewPostId: null,
+    lightboxOpen: false,
     checkingId: null,
     strategyNotes: {},
     newClientName: '',
@@ -1001,8 +1024,11 @@ class Component extends DCLogic {
   };
   deletePost = (id) => { if (this.isAdmin) { this.setState(s => ({ posts: s.posts.filter(p => p.id !== id) })); this.scheduleSave(); } };
   approvePost = (id) => { this.setState(s => ({ posts: s.posts.map(p => p.id === id ? { ...p, status: 'scheduled' } : p) })); this.scheduleSave(); };
-  openView = (post) => this.setState({ viewPostId: post.id });
-  closeView = () => this.setState({ viewPostId: null });
+  openView = (post) => this.setState({ viewPostId: post.id, lightboxOpen: false });
+  closeView = () => this.setState({ viewPostId: null, lightboxOpen: false });
+  openLightbox = () => this.setState({ lightboxOpen: true });
+  closeLightbox = () => this.setState({ lightboxOpen: false });
+  onLightboxBackdropClick = (e) => { e.stopPropagation(); this.closeLightbox(); };
   openChangeRequest = (id) => this.setState({ changeRequestModal: { postId: id, note: '' } });
   onChangeRequestNoteChange = (e) => this.setState(s => ({ changeRequestModal: { ...s.changeRequestModal, note: e.target.value } }));
   closeChangeRequest = () => this.setState({ changeRequestModal: null });
@@ -1374,7 +1400,12 @@ class Component extends DCLogic {
       viewPostMediaIsImage: viewPost ? viewPost.mediaIsImage : false,
       viewPostMediaIsVideo: viewPost ? viewPost.mediaIsVideo : false,
       viewPostMediaDataUrl: viewPost ? viewPost.mediaDataUrl : '',
+      viewPostMediaName: viewPost ? (viewPost.mediaName || (viewPost.mediaIsVideo ? 'post-video' : 'post-image')) : '',
       viewPostMediaExpired: viewPost ? viewPost.mediaExpired : false,
+      viewPostLightboxOpen: !!viewPost && this.state.lightboxOpen,
+      openLightbox: this.openLightbox,
+      closeLightbox: this.closeLightbox,
+      onLightboxBackdropClick: this.onLightboxBackdropClick,
       viewPostHasCaption: viewPost ? viewPost.hasCaption : false,
       viewPostCaption: viewPost ? viewPost.caption : '',
       viewPostPillarLabel: viewPost ? viewPost.pillarLabel : '',
