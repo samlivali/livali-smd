@@ -849,7 +849,12 @@ class Component extends DCLogic {
     return v;
   }
   get calendarMode() { return this.state.calendarMode || this.props.defaultCalendarMode || 'month'; }
-  get effectiveClientId() { return (this.isAdmin || this.isEditor) ? this.state.adminViewClientId : (this.state.session ? this.state.session.clientId : null); }
+  get effectiveClientId() {
+    if (this.isAdmin || this.isEditor) {
+      return this.state.adminViewClientId || (this.state.clients[0] ? this.state.clients[0].id : null);
+    }
+    return this.state.session ? this.state.session.clientId : null;
+  }
   get effectiveAdminUsername() { return this.state.adminUsernameOverride || this.props.adminUsername || 'admin'; }
   get effectiveAdminPassword() { return this.state.adminPasswordOverride || this.props.adminPassword || 'admin123!'; }
   get effectiveEditorUsername() { return this.state.editorUsernameOverride || this.props.editorUsername || 'editor'; }
@@ -1391,7 +1396,7 @@ class Component extends DCLogic {
       openNew: () => this.openNew(),
       showClientSwitcher: (isAdmin || isEditor) && clients.length > 0 && view !== 'clients',
       clientSwitcherOptions: clients.map(c => ({ value: c.id, label: c.name })),
-      clientSwitcherValue: this.state.adminViewClientId || '',
+      clientSwitcherValue: effectiveClientId || '',
       onClientSwitch: this.onClientSwitch,
       statCards,
       hasUpcoming: upcomingPosts.length > 0,
