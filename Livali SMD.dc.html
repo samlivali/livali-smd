@@ -200,7 +200,7 @@
                     <sc-if value="{{ p.noMedia }}" hint-placeholder-val="{{ true }}">
                       <i class="ph {{ p.icon }}" style="font-size:18px;color:var(--color-neutral-500);flex:none;"></i>
                     </sc-if>
-                    <div style="min-width:0;flex:1;" onClick="{{ p.onEdit }}">
+                    <div style="min-width:0;flex:1;" onClick="{{ p.onOpen }}">
                       <div style="font-size:14px;">{{ p.title }}</div>
                       <div style="font-size:12px;color:var(--color-neutral-600);">{{ p.dateLabel }} · {{ p.time12 }} · {{ p.platformLabel }}</div>
                       <sc-if value="{{ p.hasClientNote }}" hint-placeholder-val="{{ false }}">
@@ -244,7 +244,7 @@
                   </div>
                   <div style="display:flex;flex-direction:column;gap:3px;overflow:auto;max-height:76px;">
                     <sc-for list="{{ day.posts }}" as="post" hint-placeholder-count="1">
-                      <div onClick="{{ post.onEdit }}" style="{{ post.chipStyle }}">
+                      <div onClick="{{ post.onOpen }}" style="{{ post.chipStyle }}cursor:pointer;">
                         <i class="ph {{ post.icon }}" style="font-size:9px;"></i>{{ post.time12 }} {{ post.title }}
                       </div>
                     </sc-for>
@@ -271,7 +271,7 @@
               </div>
               <div style="display:flex;flex-direction:column;gap:6px;">
                 <sc-for list="{{ day.posts }}" as="post" hint-placeholder-count="1">
-                  <div style="border:1px solid var(--color-divider);border-radius:var(--radius-sm);padding:6px 8px;{{ post.cursorStyle }}" onClick="{{ post.onEdit }}">
+                  <div style="border:1px solid var(--color-divider);border-radius:var(--radius-sm);padding:6px 8px;{{ post.cursorStyle }}" onClick="{{ post.onOpen }}">
                     <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--color-neutral-600);">
                       <i class="ph {{ post.icon }}"></i>{{ post.time12 }}
                     </div>
@@ -335,7 +335,7 @@
                       </sc-for>
                       {{ p.platformLabel }}
                     </td>
-                    <td onClick="{{ p.onEdit }}" style="{{ p.cursorStyle }}max-width:220px;">
+                    <td onClick="{{ p.onOpen }}" style="{{ p.cursorStyle }}max-width:220px;">
                       <div style="display:flex;align-items:center;gap:8px;">
                         <sc-if value="{{ p.hasMedia }}" hint-placeholder-val="{{ false }}">
                           <sc-if value="{{ p.mediaIsImage }}" hint-placeholder-val="{{ true }}">
@@ -582,6 +582,57 @@
       </div>
     </div>
   </sc-if>
+  <sc-if value="{{ viewPostOpen }}" hint-placeholder-val="{{ false }}">
+    <div class="dialog-backdrop no-print" onClick="{{ closeView }}">
+      <div class="dialog" onClick="{{ stopProp }}" style="width:min(480px,100%);">
+        <div class="dialog-title">{{ viewPostTitle }}</div>
+        <div style="display:flex;flex-direction:column;gap:var(--space-3);">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <sc-for list="{{ viewPostPlatformIcons }}" as="pi" hint-placeholder-count="2">
+              <i class="ph {{ pi.icon }}" title="{{ pi.label }}" style="font-size:16px;color:var(--color-neutral-600);"></i>
+            </sc-for>
+            <span style="font-size:13px;color:var(--color-neutral-600);">{{ viewPostPlatformLabel }} · {{ viewPostDateLabel }} · {{ viewPostTime12 }}</span>
+          </div>
+          <div>
+            <span class="tag {{ viewPostStatusTagClass }}" style="{{ viewPostStatusStyle }}"><i class="ph {{ viewPostStatusIcon }}"></i> {{ viewPostStatusLabel }}</span>
+          </div>
+          <sc-if value="{{ viewPostHasMedia }}" hint-placeholder-val="{{ false }}">
+            <sc-if value="{{ viewPostMediaIsImage }}" hint-placeholder-val="{{ true }}">
+              <img src="{{ viewPostMediaDataUrl }}" alt="" style="width:100%;max-height:280px;object-fit:cover;border-radius:var(--radius-md);"/>
+            </sc-if>
+            <sc-if value="{{ viewPostMediaIsVideo }}" hint-placeholder-val="{{ false }}">
+              <video src="{{ viewPostMediaDataUrl }}" controls style="width:100%;max-height:280px;border-radius:var(--radius-md);"></video>
+            </sc-if>
+          </sc-if>
+          <sc-if value="{{ viewPostMediaExpired }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:12px;color:var(--color-neutral-500);display:flex;align-items:center;gap:4px;"><i class="ph ph-clock-countdown"></i>Media expired 48h after posting</div>
+          </sc-if>
+          <sc-if value="{{ viewPostHasCaption }}" hint-placeholder-val="{{ false }}">
+            <div class="field" style="margin:0;">
+              <label>Caption</label>
+              <div style="font-size:14px;white-space:pre-wrap;">{{ viewPostCaption }}</div>
+            </div>
+          </sc-if>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);font-size:13px;">
+            <div><span class="text-muted">Pillar:</span> {{ viewPostPillarLabel }}</div>
+            <div><span class="text-muted">Assignee:</span> {{ viewPostAssigneeLabel }}</div>
+          </div>
+          <sc-if value="{{ viewPostHasClientNote }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:12px;color:var(--color-accent);display:flex;gap:4px;align-items:flex-start;"><i class="ph ph-chat-centered-text" style="flex:none;margin-top:1px;"></i><span>{{ viewPostClientNote }}</span></div>
+          </sc-if>
+        </div>
+        <div class="dialog-actions">
+          <sc-if value="{{ viewPostCanRequestChanges }}" hint-placeholder-val="{{ false }}">
+            <button class="btn btn-secondary" style="margin-right:auto;" onClick="{{ viewPostOnRequestChanges }}">Request changes</button>
+          </sc-if>
+          <button class="btn btn-secondary" onClick="{{ closeView }}">Close</button>
+          <sc-if value="{{ viewPostCanApprove }}" hint-placeholder-val="{{ false }}">
+            <button class="btn btn-primary" onClick="{{ viewPostOnApprove }}">Approve</button>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+  </sc-if>
   <datalist id="pillar-suggestions">
     <sc-for list="{{ pillarSuggestions }}" as="ps" hint-placeholder-count="6"><option value="{{ ps }}"></option></sc-for>
   </datalist>
@@ -687,6 +738,7 @@ class Component extends DCLogic {
     statusActive: STATUS_ORDER.slice(),
     modal: null,
     changeRequestModal: null,
+    viewPostId: null,
     checkingId: null,
     strategyNotes: {},
     newClientName: '',
@@ -949,6 +1001,8 @@ class Component extends DCLogic {
   };
   deletePost = (id) => { if (this.isAdmin) { this.setState(s => ({ posts: s.posts.filter(p => p.id !== id) })); this.scheduleSave(); } };
   approvePost = (id) => { this.setState(s => ({ posts: s.posts.map(p => p.id === id ? { ...p, status: 'scheduled' } : p) })); this.scheduleSave(); };
+  openView = (post) => this.setState({ viewPostId: post.id });
+  closeView = () => this.setState({ viewPostId: null });
   openChangeRequest = (id) => this.setState({ changeRequestModal: { postId: id, note: '' } });
   onChangeRequestNoteChange = (e) => this.setState(s => ({ changeRequestModal: { ...s.changeRequestModal, note: e.target.value } }));
   closeChangeRequest = () => this.setState({ changeRequestModal: null });
@@ -1012,8 +1066,9 @@ class Component extends DCLogic {
       isChecking,
       hasCheckedLabel: !!p.checkedAt && !isChecking,
       checkedLabel: p.checkedAt ? new Date(p.checkedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '',
-      cursorStyle: canEdit ? 'cursor:pointer;' : '',
+      cursorStyle: 'cursor:pointer;',
       onEdit: canEdit ? () => this.openEdit(p) : undefined,
+      onOpen: canEdit ? () => this.openEdit(p) : () => this.openView(p),
       onApprove: () => this.approvePost(p.id),
       onRequestChanges: () => this.openChangeRequest(p.id),
       onCheck: () => this.checkStatus(p.id),
@@ -1037,6 +1092,8 @@ class Component extends DCLogic {
     const scopedPosts = this.state.posts.filter(p => p.clientId === effectiveClientId);
     const visiblePosts = scopedPosts.filter(p => postPlatforms(p).some(pl => platformActive.includes(pl)));
     const augmentedAll = visiblePosts.map(p => this.augment(p));
+    const viewPostRaw = this.state.viewPostId ? scopedPosts.find(p => p.id === this.state.viewPostId) : null;
+    const viewPost = viewPostRaw ? this.augment(viewPostRaw) : null;
 
     const viewTabDefs = [
       { id: 'overview', label: 'Overview', icon: 'ph-squares-four' },
@@ -1302,6 +1359,32 @@ class Component extends DCLogic {
       closeChangeRequest: this.closeChangeRequest,
       submitChangeRequest: this.submitChangeRequest,
       changeRequestSaveDisabled: this.state.changeRequestModal ? !this.state.changeRequestModal.note.trim() : true,
+      viewPostOpen: !!viewPost,
+      closeView: this.closeView,
+      viewPostTitle: viewPost ? viewPost.title : '',
+      viewPostPlatformIcons: viewPost ? viewPost.platformIcons : [],
+      viewPostPlatformLabel: viewPost ? viewPost.platformLabel : '',
+      viewPostDateLabel: viewPost ? viewPost.dateLabel : '',
+      viewPostTime12: viewPost ? viewPost.time12 : '',
+      viewPostStatusLabel: viewPost ? viewPost.statusLabel : '',
+      viewPostStatusIcon: viewPost ? viewPost.statusIcon : '',
+      viewPostStatusTagClass: viewPost ? viewPost.statusTagClass : '',
+      viewPostStatusStyle: viewPost ? viewPost.statusStyle : {},
+      viewPostHasMedia: viewPost ? viewPost.hasMedia : false,
+      viewPostMediaIsImage: viewPost ? viewPost.mediaIsImage : false,
+      viewPostMediaIsVideo: viewPost ? viewPost.mediaIsVideo : false,
+      viewPostMediaDataUrl: viewPost ? viewPost.mediaDataUrl : '',
+      viewPostMediaExpired: viewPost ? viewPost.mediaExpired : false,
+      viewPostHasCaption: viewPost ? viewPost.hasCaption : false,
+      viewPostCaption: viewPost ? viewPost.caption : '',
+      viewPostPillarLabel: viewPost ? viewPost.pillarLabel : '',
+      viewPostAssigneeLabel: viewPost ? viewPost.assigneeLabel : '',
+      viewPostHasClientNote: viewPost ? viewPost.hasClientNote : false,
+      viewPostClientNote: viewPost ? viewPost.clientNote : '',
+      viewPostCanApprove: viewPost ? viewPost.canApprove : false,
+      viewPostCanRequestChanges: viewPost ? viewPost.canRequestChanges : false,
+      viewPostOnApprove: viewPost ? (() => { this.approvePost(viewPost.id); this.closeView(); }) : undefined,
+      viewPostOnRequestChanges: viewPost ? (() => { this.closeView(); this.openChangeRequest(viewPost.id); }) : undefined,
       syncStatusLabel,
       syncErrorMsg: this.state.syncError,
       syncBusy,
