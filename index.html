@@ -712,7 +712,12 @@
       </div>
       <div class="field" style="margin:0;">
         <label>Password</label>
-        <input class="input" type="password" value="{{ loginPassword }}" onChange="{{ onLoginPasswordChange }}" placeholder="Password"/>
+        <div style="position:relative;">
+          <input class="input" type="{{ loginPasswordInputType }}" value="{{ loginPassword }}" onChange="{{ onLoginPasswordChange }}" placeholder="Password" style="padding-right:36px;"/>
+          <button type="button" class="btn btn-icon btn-ghost" aria-label="{{ loginPasswordToggleLabel }}" onClick="{{ toggleLoginPasswordVisible }}" style="position:absolute;top:50%;right:2px;transform:translateY(-50%);">
+            <i class="ph {{ loginPasswordToggleIcon }}"></i>
+          </button>
+        </div>
       </div>
       <sc-if value="{{ loginError }}" hint-placeholder-val="{{ false }}">
         <div style="font-size:12px;color:var(--color-accent);">{{ loginError }}</div>
@@ -819,6 +824,7 @@ class Component extends DCLogic {
     loginUsername: '',
     loginPassword: '',
     loginError: '',
+    loginPasswordVisible: false,
     adminUsernameOverride: null,
     adminPasswordOverride: null,
     adminUsernameDraft: null,
@@ -883,6 +889,7 @@ class Component extends DCLogic {
 
   onLoginUsernameChange = (e) => this.setState({ loginUsername: e.target.value });
   onLoginPasswordChange = (e) => this.setState({ loginPassword: e.target.value });
+  toggleLoginPasswordVisible = () => this.setState(s => ({ loginPasswordVisible: !s.loginPasswordVisible }));
   onLoginSubmit = (e) => { e.preventDefault(); this.login(); };
   login = () => {
     if (!this.state.appDataLoaded) return;
@@ -1469,6 +1476,10 @@ class Component extends DCLogic {
       onLoginUsernameChange: this.onLoginUsernameChange,
       onLoginPasswordChange: this.onLoginPasswordChange,
       onLoginSubmit: this.onLoginSubmit,
+      loginPasswordInputType: this.state.loginPasswordVisible ? 'text' : 'password',
+      loginPasswordToggleIcon: this.state.loginPasswordVisible ? 'ph-eye-slash' : 'ph-eye',
+      loginPasswordToggleLabel: this.state.loginPasswordVisible ? 'Hide password' : 'Show password',
+      toggleLoginPasswordVisible: this.toggleLoginPasswordVisible,
       adminUsernameDraft,
       onAdminUsernameDraftChange: this.onAdminUsernameDraftChange,
       adminPasswordDraft,
