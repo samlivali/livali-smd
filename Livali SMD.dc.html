@@ -799,6 +799,45 @@ function transitionStatuses(current, addId, removeIds) {
   if (!next.includes(addId)) next.push(addId);
   return next;
 }
+const EMAIL_DOMAIN = 'livali-internal.invalid';
+function usernameToEmail(u) { return u.trim().toLowerCase() + '@' + EMAIL_DOMAIN; }
+function rowToPost(row) {
+  return {
+    id: row.id,
+    clientId: row.client_id,
+    platforms: row.platforms,
+    date: row.post_date,
+    time: (row.post_time || '').slice(0, 5),
+    title: row.title,
+    caption: row.caption || '',
+    mediaDataUrl: row.media_data_url || null,
+    mediaType: row.media_type || null,
+    mediaName: row.media_name || null,
+    mediaExpired: !!row.media_expired,
+    pillar: row.pillar || '',
+    assignee: row.assignee || '',
+    statuses: row.statuses,
+    clientNote: row.client_note || '',
+    checkedAt: row.checked_at,
+  };
+}
+function postToRow(clientId, m) {
+  return {
+    client_id: clientId,
+    platforms: m.platforms,
+    post_date: m.date,
+    post_time: m.time,
+    title: m.title,
+    caption: m.caption || '',
+    media_data_url: m.mediaDataUrl || null,
+    media_type: m.mediaType || null,
+    media_name: m.mediaName || null,
+    media_expired: !!m.mediaExpired,
+    pillar: m.pillar || '',
+    assignee: m.assignee || '',
+    statuses: m.statuses,
+  };
+}
 
 class Component extends DCLogic {
   state = {
@@ -825,13 +864,11 @@ class Component extends DCLogic {
     loginPassword: '',
     loginError: '',
     loginPasswordVisible: false,
-    adminUsernameOverride: null,
-    adminPasswordOverride: null,
+    adminUsername: '',
+    editorUsername: '',
     adminUsernameDraft: null,
     adminPasswordDraft: null,
     adminCredentialError: '',
-    editorUsernameOverride: null,
-    editorPasswordOverride: null,
     editorUsernameDraft: null,
     editorPasswordDraft: null,
     editorCredentialError: '',
@@ -843,8 +880,7 @@ class Component extends DCLogic {
   };
 
   sb = null;
-  sbLoaded = false;
-  saveTimer = null;
+  strategySaveTimer = null;
 
   get isAdmin() { return !!this.state.session && this.state.session.role === 'admin'; }
   get isEditor() { return !!this.state.session && this.state.session.role === 'editor'; }
@@ -861,10 +897,6 @@ class Component extends DCLogic {
     }
     return this.state.session ? this.state.session.clientId : null;
   }
-  get effectiveAdminUsername() { return this.state.adminUsernameOverride || this.props.adminUsername || 'admin'; }
-  get effectiveAdminPassword() { return this.state.adminPasswordOverride || this.props.adminPassword || 'admin123!'; }
-  get effectiveEditorUsername() { return this.state.editorUsernameOverride || this.props.editorUsername || 'editor'; }
-  get effectiveEditorPassword() { return this.state.editorPasswordOverride || this.props.editorPassword || 'editor123!'; }
 
   setView = (id) => this.setState({ view: id });
   setMonthMode = () => this.setState({ calendarMode: 'month' });
@@ -891,110 +923,102 @@ class Component extends DCLogic {
   onLoginPasswordChange = (e) => this.setState({ loginPassword: e.target.value });
   toggleLoginPasswordVisible = () => this.setState(s => ({ loginPasswordVisible: !s.loginPasswordVisible }));
   onLoginSubmit = (e) => { e.preventDefault(); this.login(); };
-  login = () => {
+  login = async () => {
     if (!this.state.appDataLoaded) return;
     const u = this.state.loginUsername.trim();
     const p = this.state.loginPassword;
     if (!u || !p) { this.setState({ loginError: 'Enter a username and password.' }); return; }
-    const adminUser = this.effectiveAdminUsername;
-    const adminPass = this.effectiveAdminPassword;
-    if (u.toLowerCase() === adminUser.toLowerCase() && p === adminPass) {
-      this.setState({ session: { role: 'admin' }, loginUsername: '', loginPassword: '', loginError: '' });
-      return;
-    }
-    const editorUser = this.effectiveEditorUsername;
-    const editorPass = this.effectiveEditorPassword;
-    if (u.toLowerCase() === editorUser.toLowerCase() && p === editorPass) {
-      this.setState({ session: { role: 'editor' }, loginUsername: '', loginPassword: '', loginError: '' });
-      return;
-    }
-    const client = this.state.clients.find(c => c.username && c.username.toLowerCase() === u.toLowerCase() && c.password === p);
-    if (client) {
-      this.setState({ session: { role: 'client', clientId: client.id }, loginUsername: '', loginPassword: '', loginError: '' });
-      return;
-    }
-    this.setState({ loginError: 'Incorrect username or password.' });
+    const { error } = await this.sb.auth.signInWithPassword({ email: usernameToEmail(u), password: p });
+    if (error) { this.setState({ loginError: 'Incorrect username or password.' }); return; }
+    this.setState({ loginUsername: '', loginPassword: '', loginError: '' });
   };
-  logout = () => this.setState({ session: null, loginUsername: '', loginPassword: '', loginError: '' });
+  logout = () => this.sb.auth.signOut();
+
+  decodeClaims(session) {
+    if (!session) return null;
+    try {
+      const payloadB64 = session.access_token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      const json = JSON.parse(atob(payloadB64));
+      if (!json.user_role) return null;
+      return { role: json.user_role, clientId: json.client_id || null };
+    } catch (e) {
+      return null;
+    }
+  }
 
   componentDidMount() {
     this.sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    this.loadAppState();
+    this.sb.auth.onAuthStateChange((_event, session) => {
+      const claimSession = this.decodeClaims(session);
+      this.setState({ session: claimSession, appDataLoaded: true });
+      if (claimSession) this.loadAllData();
+      else this.setState({ clients: [], posts: [], strategyNotes: {}, adminUsername: '', editorUsername: '' });
+    });
     this.expireMediaTick();
     this.mediaExpiryInterval = setInterval(this.expireMediaTick, 30 * 60 * 1000);
   }
 
   componentWillUnmount() {
     clearInterval(this.mediaExpiryInterval);
-    clearTimeout(this.saveTimer);
+    clearTimeout(this.strategySaveTimer);
   }
 
   expireMediaTick = () => {
     const { posts, changed } = expireMedia(this.state.posts);
-    if (changed) { this.setState({ posts }); this.scheduleSave(); }
+    if (!changed) return;
+    const newlyExpired = posts.filter((p, i) => this.state.posts[i] && this.state.posts[i].mediaDataUrl && !p.mediaDataUrl);
+    this.setState({ posts });
+    newlyExpired.forEach(p => {
+      this.sb.from('posts').update({ media_data_url: null, media_type: null, media_name: null, media_expired: true }).eq('id', p.id);
+    });
   };
 
-  loadAppState = async () => {
+  loadAllData = async () => {
     this.setState({ syncStatus: 'loading' });
     try {
-      const { data, error } = await this.sb.from('app_state').select('data').eq('id', 'singleton').single();
-      if (error) throw error;
-      const raw = (data && data.data) || {};
-      const { posts: loadedPosts } = expireMedia(raw.posts || []);
+      const [clientsRes, postsRes, notesRes] = await Promise.all([
+        this.sb.from('clients').select('*'),
+        this.sb.from('posts').select('*'),
+        (this.isAdmin || this.isEditor) ? this.sb.from('strategy_notes').select('*') : Promise.resolve({ data: [], error: null }),
+      ]);
+      if (clientsRes.error) throw clientsRes.error;
+      if (postsRes.error) throw postsRes.error;
+      if (notesRes.error) throw notesRes.error;
+
+      const { posts: expiredPosts } = expireMedia((postsRes.data || []).map(rowToPost));
+      const strategyNotes = {};
+      (notesRes.data || []).forEach(n => { strategyNotes[n.client_id + '-' + n.period_key] = n.note; });
+
+      let adminUsername = '', editorUsername = '';
+      const clientUsernames = {};
+      if (this.isAdmin) {
+        const { data: profiles } = await this.sb.from('profiles').select('role, client_id, username');
+        (profiles || []).forEach(p => {
+          if (p.role === 'admin') adminUsername = p.username;
+          if (p.role === 'editor') editorUsername = p.username;
+          if (p.role === 'client') clientUsernames[p.client_id] = p.username;
+        });
+      }
+
       this.setState({
-        clients: raw.clients || [],
-        posts: loadedPosts,
-        strategyNotes: raw.strategyNotes || {},
-        adminUsernameOverride: raw.adminUsernameOverride || null,
-        adminPasswordOverride: raw.adminPasswordOverride || null,
-        editorUsernameOverride: raw.editorUsernameOverride || null,
-        editorPasswordOverride: raw.editorPasswordOverride || null,
+        clients: (clientsRes.data || []).map(c => ({ id: c.id, name: c.name, username: clientUsernames[c.id] || '' })),
+        posts: expiredPosts,
+        strategyNotes,
+        adminUsername,
+        editorUsername,
         syncStatus: 'idle',
         syncError: '',
         lastSyncedAt: new Date().toISOString(),
-        appDataLoaded: true,
       });
-      this.sbLoaded = true;
     } catch (e) {
       this.setState({
         syncStatus: 'error',
-        syncError: 'Could not reach the database. You can keep working in this tab; use "Sync now" once your connection is back.',
-        appDataLoaded: true,
+        syncError: 'Could not reach the database. Use "Sync now" once your connection is back.',
       });
     }
   };
 
-  scheduleSave = () => {
-    clearTimeout(this.saveTimer);
-    this.saveTimer = setTimeout(() => this.saveAppState(), 1500);
-  };
-
-  saveAppState = async () => {
-    if (!this.sb || !this.sbLoaded) return;
-    this.setState({ syncStatus: 'saving' });
-    const payload = {
-      clients: this.state.clients,
-      posts: this.state.posts,
-      strategyNotes: this.state.strategyNotes,
-      adminUsernameOverride: this.state.adminUsernameOverride,
-      adminPasswordOverride: this.state.adminPasswordOverride,
-      editorUsernameOverride: this.state.editorUsernameOverride,
-      editorPasswordOverride: this.state.editorPasswordOverride,
-    };
-    try {
-      const { error } = await this.sb.from('app_state').update({ data: payload, updated_at: new Date().toISOString() }).eq('id', 'singleton');
-      if (error) throw error;
-      this.sbLoaded = true;
-      this.setState({ syncStatus: 'idle', syncError: '', lastSyncedAt: new Date().toISOString() });
-    } catch (e) {
-      this.setState({ syncStatus: 'error', syncError: 'Sync failed — your changes are saved locally in this tab and will retry automatically.' });
-    }
-  };
-
-  syncNow = () => {
-    if (!this.sbLoaded) this.loadAppState();
-    else this.saveAppState();
-  };
+  syncNow = () => this.loadAllData();
   setAdminViewClient = (id) => this.setState({ adminViewClientId: id, view: 'overview' });
   onClientSwitch = (e) => this.setAdminViewClient(e.target.value);
   goToClients = () => this.setState({ view: 'clients' });
@@ -1003,40 +1027,52 @@ class Component extends DCLogic {
   onNewClientPasswordChange = (e) => this.setState({ newClientPassword: e.target.value });
   onAdminUsernameDraftChange = (e) => this.setState({ adminUsernameDraft: e.target.value, adminCredentialError: '' });
   onAdminPasswordDraftChange = (e) => this.setState({ adminPasswordDraft: e.target.value, adminCredentialError: '' });
-  saveAdminCredentials = () => {
+  async callAdminFn(path, body) {
+    const { data: { session } } = await this.sb.auth.getSession();
+    const res = await fetch(SUPABASE_URL + '/functions/v1/' + path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token, 'apikey': SUPABASE_ANON_KEY },
+      body: JSON.stringify(body),
+    });
+    const json = await res.json().catch(() => ({}));
+    return { ok: res.ok, json };
+  }
+  saveAdminCredentials = async () => {
     if (!this.isAdmin) return;
-    const username = (this.state.adminUsernameDraft !== null ? this.state.adminUsernameDraft : this.effectiveAdminUsername).trim();
-    const password = this.state.adminPasswordDraft !== null ? this.state.adminPasswordDraft : this.effectiveAdminPassword;
+    const username = (this.state.adminUsernameDraft !== null ? this.state.adminUsernameDraft : this.state.adminUsername).trim();
+    const password = this.state.adminPasswordDraft;
     if (!username || !password) { this.setState({ adminCredentialError: 'Username and password cannot be empty.' }); return; }
-    const taken = username.toLowerCase() === this.effectiveEditorUsername.toLowerCase() || this.state.clients.some(c => c.username.toLowerCase() === username.toLowerCase());
-    if (taken) { this.setState({ adminCredentialError: 'That username is already taken.' }); return; }
-    this.setState({ adminUsernameOverride: username, adminPasswordOverride: password, adminUsernameDraft: null, adminPasswordDraft: null, adminCredentialError: '' });
-    this.scheduleSave();
+    const { ok, json } = await this.callAdminFn('admin-update-credentials', { targetRole: 'admin', username, password });
+    if (!ok) { this.setState({ adminCredentialError: json.error || 'Failed to update.' }); return; }
+    this.setState({ adminUsername: username, adminUsernameDraft: null, adminPasswordDraft: null, adminCredentialError: '' });
   };
   onEditorUsernameDraftChange = (e) => this.setState({ editorUsernameDraft: e.target.value, editorCredentialError: '' });
   onEditorPasswordDraftChange = (e) => this.setState({ editorPasswordDraft: e.target.value, editorCredentialError: '' });
-  saveEditorCredentials = () => {
+  saveEditorCredentials = async () => {
     if (!this.isAdmin) return;
-    const username = (this.state.editorUsernameDraft !== null ? this.state.editorUsernameDraft : this.effectiveEditorUsername).trim();
-    const password = this.state.editorPasswordDraft !== null ? this.state.editorPasswordDraft : this.effectiveEditorPassword;
+    const username = (this.state.editorUsernameDraft !== null ? this.state.editorUsernameDraft : this.state.editorUsername).trim();
+    const password = this.state.editorPasswordDraft;
     if (!username || !password) { this.setState({ editorCredentialError: 'Username and password cannot be empty.' }); return; }
-    const taken = username.toLowerCase() === this.effectiveAdminUsername.toLowerCase() || this.state.clients.some(c => c.username.toLowerCase() === username.toLowerCase());
-    if (taken) { this.setState({ editorCredentialError: 'That username is already taken.' }); return; }
-    this.setState({ editorUsernameOverride: username, editorPasswordOverride: password, editorUsernameDraft: null, editorPasswordDraft: null, editorCredentialError: '' });
-    this.scheduleSave();
+    const { ok, json } = await this.callAdminFn('admin-update-credentials', { targetRole: 'editor', username, password });
+    if (!ok) { this.setState({ editorCredentialError: json.error || 'Failed to update.' }); return; }
+    this.setState({ editorUsername: username, editorUsernameDraft: null, editorPasswordDraft: null, editorCredentialError: '' });
   };
-  addClientClick = () => {
+  addClientClick = async () => {
     const name = this.state.newClientName.trim();
     const username = this.state.newClientUsername.trim();
     const password = this.state.newClientPassword;
     if (!name || !username || !password) return;
-    const taken = username.toLowerCase() === this.effectiveAdminUsername.toLowerCase() || username.toLowerCase() === this.effectiveEditorUsername.toLowerCase() || this.state.clients.some(c => c.username.toLowerCase() === username.toLowerCase());
-    if (taken) { this.setState({ newClientError: 'That username is already taken.' }); return; }
-    const id = 'c' + Date.now() + Math.random().toString(36).slice(2, 5);
-    this.setState(s => ({ clients: s.clients.concat({ id, name, username, password }), adminViewClientId: s.adminViewClientId || id, newClientName: '', newClientUsername: '', newClientPassword: '', newClientError: '' }));
-    this.scheduleSave();
+    const { ok, json } = await this.callAdminFn('admin-create-client', { clientName: name, username, password });
+    if (!ok) { this.setState({ newClientError: json.error || 'Failed to add client.' }); return; }
+    this.setState(s => ({
+      clients: s.clients.concat({ id: json.id, name: json.name, username }),
+      adminViewClientId: s.adminViewClientId || json.id,
+      newClientName: '', newClientUsername: '', newClientPassword: '', newClientError: '',
+    }));
   };
-  removeClient = (id) => {
+  removeClient = async (id) => {
+    const { ok } = await this.callAdminFn('admin-delete-client', { clientId: id });
+    if (!ok) return;
     this.setState(s => {
       const clients = s.clients.filter(c => c.id !== id);
       return {
@@ -1045,7 +1081,6 @@ class Component extends DCLogic {
         adminViewClientId: s.adminViewClientId === id ? (clients[0] ? clients[0].id : null) : s.adminViewClientId,
       };
     });
-    this.scheduleSave();
   };
 
   openNew = (dateISO) => {
@@ -1095,35 +1130,47 @@ class Component extends DCLogic {
     reader.readAsDataURL(file);
   };
   removeDraftMedia = () => this.setState(s => ({ modal: { ...s.modal, mediaDataUrl: null, mediaType: null, mediaName: null } }));
-  saveDraft = () => {
+  saveDraft = async () => {
     const m = this.state.modal;
     if (!m || !m.title.trim() || !m.statuses.length) return;
+    const row = postToRow(m.clientId, m);
     if (m.editingId) {
+      const existing = this.state.posts.find(p => p.id === m.editingId);
+      const becamePosted = m.statuses.includes('posted') && !postStatuses(existing || {}).includes('posted');
+      const checkedAt = becamePosted ? new Date().toISOString() : (existing ? existing.checkedAt : null);
+      if (becamePosted) row.checked_at = checkedAt;
+      const { error } = await this.sb.from('posts').update(row).eq('id', m.editingId);
+      if (error) return;
       this.setState(s => ({
-        posts: s.posts.map(p => {
-          if (p.id !== m.editingId) return p;
-          const becamePosted = m.statuses.includes('posted') && !postStatuses(p).includes('posted');
-          return { ...p, ...m, mediaExpired: m.mediaDataUrl ? false : p.mediaExpired, checkedAt: becamePosted ? new Date().toISOString() : p.checkedAt };
-        }),
+        posts: s.posts.map(p => p.id === m.editingId ? { ...p, ...m, mediaExpired: m.mediaDataUrl ? false : p.mediaExpired, checkedAt } : p),
         modal: null,
       }));
     } else {
       const id = 'p' + Date.now() + Math.random().toString(36).slice(2, 6);
       const checkedAt = m.statuses.includes('posted') ? new Date().toISOString() : null;
+      row.checked_at = checkedAt;
+      const { error } = await this.sb.from('posts').insert({ id, ...row });
+      if (error) return;
       this.setState(s => ({ posts: s.posts.concat({ id, ...m, checkedAt }), modal: null }));
     }
-    this.scheduleSave();
   };
-  deleteDraft = () => {
+  deleteDraft = async () => {
     const m = this.state.modal;
     if (!m || !m.editingId) return;
+    const { error } = await this.sb.from('posts').delete().eq('id', m.editingId);
+    if (error) return;
     this.setState(s => ({ posts: s.posts.filter(p => p.id !== m.editingId), modal: null }));
-    this.scheduleSave();
   };
-  deletePost = (id) => { if (this.isAdmin || this.isEditor) { this.setState(s => ({ posts: s.posts.filter(p => p.id !== id) })); this.scheduleSave(); } };
-  approvePost = (id) => {
+  deletePost = async (id) => {
+    if (!this.isAdmin && !this.isEditor) return;
+    const { error } = await this.sb.from('posts').delete().eq('id', id);
+    if (error) return;
+    this.setState(s => ({ posts: s.posts.filter(p => p.id !== id) }));
+  };
+  approvePost = async (id) => {
+    const { error } = await this.sb.rpc('approve_post', { p_post_id: id });
+    if (error) return;
     this.setState(s => ({ posts: s.posts.map(p => p.id === id ? { ...p, statuses: transitionStatuses(postStatuses(p), 'scheduled', ['needs-approval', 'changes-requested']) } : p) }));
-    this.scheduleSave();
   };
   openView = (post) => this.setState({ viewPostId: post.id, lightboxOpen: false });
   closeView = () => this.setState({ viewPostId: null, lightboxOpen: false });
@@ -1133,26 +1180,43 @@ class Component extends DCLogic {
   openChangeRequest = (id) => this.setState({ changeRequestModal: { postId: id, note: '' } });
   onChangeRequestNoteChange = (e) => this.setState(s => ({ changeRequestModal: { ...s.changeRequestModal, note: e.target.value } }));
   closeChangeRequest = () => this.setState({ changeRequestModal: null });
-  submitChangeRequest = () => {
+  submitChangeRequest = async () => {
     const m = this.state.changeRequestModal;
     if (!m || !m.note.trim()) return;
+    const note = m.note.trim();
+    const { error } = await this.sb.rpc('submit_change_request', { p_post_id: m.postId, p_note: note });
+    if (error) return;
     this.setState(s => ({
-      posts: s.posts.map(p => p.id === m.postId ? { ...p, statuses: transitionStatuses(postStatuses(p), 'changes-requested', ['needs-approval']), clientNote: m.note.trim() } : p),
+      posts: s.posts.map(p => p.id === m.postId ? { ...p, statuses: transitionStatuses(postStatuses(p), 'changes-requested', ['needs-approval']), clientNote: note } : p),
       changeRequestModal: null,
     }));
-    this.scheduleSave();
   };
   checkStatus = (id) => {
     if (!this.isAdmin && !this.isEditor) return;
     this.setState({ checkingId: id });
     const rate = (this.props.checkSuccessRate ?? 75) / 100;
-    setTimeout(() => {
+    setTimeout(async () => {
       const result = Math.random() < rate ? 'posted' : 'missed';
-      this.setState(s => ({ posts: s.posts.map(p => p.id === id ? { ...p, statuses: transitionStatuses(postStatuses(p), result, ['scheduled']), checkedAt: new Date().toISOString() } : p), checkingId: null }));
-      this.scheduleSave();
+      const post = this.state.posts.find(p => p.id === id);
+      const statuses = post ? transitionStatuses(postStatuses(post), result, ['scheduled']) : [result];
+      const checkedAt = new Date().toISOString();
+      const { error } = await this.sb.from('posts').update({ statuses, checked_at: checkedAt }).eq('id', id);
+      if (!error) {
+        this.setState(s => ({ posts: s.posts.map(p => p.id === id ? { ...p, statuses, checkedAt } : p), checkingId: null }));
+      } else {
+        this.setState({ checkingId: null });
+      }
     }, 1200);
   };
-  onStrategyChange = (key, val) => { this.setState(s => ({ strategyNotes: { ...s.strategyNotes, [key]: val } })); this.scheduleSave(); };
+  onStrategyChange = (key, val) => {
+    this.setState(s => ({ strategyNotes: { ...s.strategyNotes, [key]: val } }));
+    const clientId = this.effectiveClientId;
+    const periodKey = key.slice(clientId.length + 1);
+    clearTimeout(this.strategySaveTimer);
+    this.strategySaveTimer = setTimeout(() => {
+      this.sb.from('strategy_notes').upsert({ client_id: clientId, period_key: periodKey, note: val }, { onConflict: 'client_id,period_key' });
+    }, 1500);
+  };
   exportPdf = () => window.print();
 
   augment(p) {
@@ -1344,10 +1408,10 @@ class Component extends DCLogic {
 
     const roleCaption = isAdmin ? 'Admin: full access' : isEditor ? 'Editor: manage posts & content' : 'Client: approve, request changes & export';
     const currentAccountLabel = isAdmin ? 'Admin' : isEditor ? 'Editor' : (effectiveClient ? effectiveClient.name : 'Client');
-    const adminUsernameDraft = this.state.adminUsernameDraft !== null ? this.state.adminUsernameDraft : this.effectiveAdminUsername;
-    const adminPasswordDraft = this.state.adminPasswordDraft !== null ? this.state.adminPasswordDraft : this.effectiveAdminPassword;
-    const editorUsernameDraft = this.state.editorUsernameDraft !== null ? this.state.editorUsernameDraft : this.effectiveEditorUsername;
-    const editorPasswordDraft = this.state.editorPasswordDraft !== null ? this.state.editorPasswordDraft : this.effectiveEditorPassword;
+    const adminUsernameDraft = this.state.adminUsernameDraft !== null ? this.state.adminUsernameDraft : this.state.adminUsername;
+    const adminPasswordDraft = this.state.adminPasswordDraft !== null ? this.state.adminPasswordDraft : '';
+    const editorUsernameDraft = this.state.editorUsernameDraft !== null ? this.state.editorUsernameDraft : this.state.editorUsername;
+    const editorPasswordDraft = this.state.editorPasswordDraft !== null ? this.state.editorPasswordDraft : '';
 
     const syncStatus = this.state.syncStatus;
     const syncBusy = syncStatus === 'loading' || syncStatus === 'saving';
@@ -1371,7 +1435,7 @@ class Component extends DCLogic {
     const clientCards = clients.map(c => ({
       id: c.id, name: c.name,
       postCountLabel: this.state.posts.filter(p => p.clientId === c.id).length + ' post(s)',
-      credentialLabel: c.username + ' / ' + c.password,
+      credentialLabel: c.username,
       onManage: () => this.setAdminViewClient(c.id),
       onRemove: () => this.removeClient(c.id),
     }));

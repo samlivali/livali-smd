@@ -8,15 +8,6 @@ export const OAUTH_CALLBACK_URL =
 // Where we bounce the browser back to once the connection is done.
 export const APP_RETURN_URL = "https://samlivali.github.io/livali-smd/";
 
-export const META_SCOPES = [
-  "pages_show_list",
-  "pages_read_engagement",
-  "pages_manage_posts",
-  "instagram_basic",
-  "instagram_content_publish",
-  "business_management",
-].join(",");
-
 function toBase64Url(bytes: Uint8Array): string {
   let str = "";
   for (const b of bytes) str += String.fromCharCode(b);

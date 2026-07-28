@@ -5,7 +5,6 @@
 
 import {
   GRAPH_VERSION,
-  META_SCOPES,
   OAUTH_CALLBACK_URL,
   signState,
 } from "../_shared/meta.ts";
@@ -19,10 +18,12 @@ Deno.serve(async (req) => {
 
   const appId = Deno.env.get("META_APP_ID");
   const appSecret = Deno.env.get("META_APP_SECRET");
-  if (!appId || !appSecret) {
-    return new Response("Server is not configured with META_APP_ID/META_APP_SECRET", {
-      status: 500,
-    });
+  const configId = Deno.env.get("META_LOGIN_CONFIG_ID");
+  if (!appId || !appSecret || !configId) {
+    return new Response(
+      "Server is not configured with META_APP_ID/META_APP_SECRET/META_LOGIN_CONFIG_ID",
+      { status: 500 },
+    );
   }
 
   const state = await signState(
@@ -30,13 +31,16 @@ Deno.serve(async (req) => {
     appSecret,
   );
 
+  // Facebook Login for Business (Business-type apps) takes a config_id from
+  // a saved Login Configuration instead of a raw `scope` list — passing
+  // `scope` here 404s with a vague "This content isn't available" error.
   const dialogUrl = new URL(
     `https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth`,
   );
   dialogUrl.searchParams.set("client_id", appId);
   dialogUrl.searchParams.set("redirect_uri", OAUTH_CALLBACK_URL);
   dialogUrl.searchParams.set("state", state);
-  dialogUrl.searchParams.set("scope", META_SCOPES);
+  dialogUrl.searchParams.set("config_id", configId);
   dialogUrl.searchParams.set("response_type", "code");
 
   return Response.redirect(dialogUrl.toString(), 302);
