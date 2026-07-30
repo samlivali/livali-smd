@@ -8,30 +8,18 @@
 // targeting anything other than exactly ['facebook'], or carrying video
 // media, are left untouched (still 'scheduled') rather than guessed at.
 //
-// Posts live in one JSON blob (app_state.data.posts) that the frontend
-// read-modify-writes wholesale on every save. To avoid this function
-// racing that, status changes go through the update_post_status() Postgres
-// function (see migration 20260725063707), which patches a single array
-// element in one atomic UPDATE instead of rewriting the whole blob.
+// Posts now live in a real `posts` table (see the Phase 0 migration) —
+// status updates are a plain PATCH on the row by id, no more atomic-JSON-
+// patch RPC needed (that was only ever a workaround for the old
+// app_state JSON blob, which this table replaces).
 
 import { GRAPH_VERSION } from "../_shared/meta.ts";
 
 const NAIROBI_OFFSET = "+03:00";
 
-function postPlatforms(p: any): string[] {
-  if (p.platforms && p.platforms.length) return p.platforms;
-  if (p.platform) return [p.platform];
-  return ["facebook"];
-}
-function postStatuses(p: any): string[] {
-  if (p.statuses && p.statuses.length) return p.statuses;
-  if (p.status) return [p.status];
-  return ["needs-approval"];
-}
-
-function dueAtUtc(p: any): Date | null {
-  if (!p.date || !p.time) return null;
-  const d = new Date(`${p.date}T${p.time}:00${NAIROBI_OFFSET}`);
+function dueAtUtc(dateStr: string, timeStr: string): Date | null {
+  if (!dateStr || !timeStr) return null;
+  const d = new Date(`${dateStr}T${timeStr.slice(0, 5)}:00${NAIROBI_OFFSET}`);
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
@@ -62,23 +50,21 @@ Deno.serve(async (req) => {
     "Authorization": `Bearer ${serviceRoleKey}`,
   };
 
-  const stateRes = await fetch(
-    `${supabaseUrl}/rest/v1/app_state?id=eq.singleton&select=data`,
+  const postsRes = await fetch(
+    `${supabaseUrl}/rest/v1/posts?statuses=cs.{scheduled}&select=*`,
     { headers: dbHeaders },
   );
-  if (!stateRes.ok) {
-    return new Response("Failed to load app_state", { status: 502 });
+  if (!postsRes.ok) {
+    return new Response("Failed to load posts", { status: 502 });
   }
-  const stateRows = await stateRes.json();
-  const posts: any[] = stateRows?.[0]?.data?.posts ?? [];
+  const posts: any[] = await postsRes.json();
 
   const now = new Date();
   const dueFacebookOnly = posts.filter((p) => {
-    if (!postStatuses(p).includes("scheduled")) return false;
-    const plats = postPlatforms(p);
+    const plats: string[] = p.platforms || [];
     if (plats.length !== 1 || plats[0] !== "facebook") return false;
-    if (p.mediaDataUrl && p.mediaType === "video") return false;
-    const due = dueAtUtc(p);
+    if (p.media_data_url && p.media_type === "video") return false;
+    const due = dueAtUtc(p.post_date, p.post_time);
     return due !== null && due <= now;
   });
 
@@ -88,7 +74,7 @@ Deno.serve(async (req) => {
     try {
       const acctRes = await fetch(
         `${supabaseUrl}/rest/v1/social_accounts?client_id=eq.${
-          encodeURIComponent(post.clientId)
+          encodeURIComponent(post.client_id)
         }&platform=eq.facebook&select=page_id,page_access_token`,
         { headers: dbHeaders },
       );
@@ -102,8 +88,8 @@ Deno.serve(async (req) => {
         "";
 
       let graphRes: Response;
-      if (post.mediaDataUrl && post.mediaType === "image") {
-        const blob = dataUrlToBlob(post.mediaDataUrl);
+      if (post.media_data_url && post.media_type === "image") {
+        const blob = dataUrlToBlob(post.media_data_url);
         if (!blob) {
           results[post.id] = "skipped: unreadable media";
           continue;
@@ -111,7 +97,7 @@ Deno.serve(async (req) => {
         const form = new FormData();
         form.append("caption", caption);
         form.append("access_token", pageToken);
-        form.append("source", blob, post.mediaName || "image.jpg");
+        form.append("source", blob, post.media_name || "image.jpg");
         graphRes = await fetch(
           `https://graph.facebook.com/${GRAPH_VERSION}/${pageId}/photos`,
           { method: "POST", body: form },
@@ -134,23 +120,19 @@ Deno.serve(async (req) => {
       const checkedAt = new Date().toISOString();
       const newStatuses = ok ? ["posted"] : ["missed"];
 
-      const rpcRes = await fetch(
-        `${supabaseUrl}/rest/v1/rpc/update_post_status`,
+      const patchRes = await fetch(
+        `${supabaseUrl}/rest/v1/posts?id=eq.${encodeURIComponent(post.id)}`,
         {
-          method: "POST",
+          method: "PATCH",
           headers: dbHeaders,
-          body: JSON.stringify({
-            p_post_id: post.id,
-            p_statuses: newStatuses,
-            p_checked_at: checkedAt,
-          }),
+          body: JSON.stringify({ statuses: newStatuses, checked_at: checkedAt }),
         },
       );
 
       if (!ok) {
         const errBody = await graphRes.text();
         results[post.id] = `missed: graph api error: ${errBody.slice(0, 200)}`;
-      } else if (!rpcRes.ok) {
+      } else if (!patchRes.ok) {
         results[post.id] = "posted to facebook but status update failed";
       } else {
         results[post.id] = "posted";
