@@ -432,6 +432,43 @@
         </div>
       </sc-if>
 
+      <sc-if value="{{ isSocialAccounts }}" hint-placeholder-val="{{ false }}">
+        <div style="max-width:900px;display:flex;flex-direction:column;gap:var(--space-4);">
+          <sc-if value="{{ metaConnectBannerVisible }}" hint-placeholder-val="{{ false }}">
+            <div class="card elev-sm no-print" style="display:flex;align-items:center;gap:var(--space-3);">
+              <i class="ph {{ metaConnectBannerIsError ? 'ph-warning-circle' : 'ph-check-circle' }}" style="font-size:20px;color:var(--color-accent);flex:none;"></i>
+              <div style="flex:1;font-size:13px;">{{ metaConnectBannerText }}</div>
+              <button class="btn btn-icon btn-ghost" aria-label="Dismiss" onClick="{{ dismissMetaConnectBanner }}"><i class="ph ph-x"></i></button>
+            </div>
+          </sc-if>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:var(--space-3);">
+            <sc-for list="{{ socialPlatformCards }}" as="p" hint-placeholder-count="6">
+              <div class="card elev-sm" style="gap:var(--space-2);">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <i class="ph {{ p.icon }}" style="font-size:20px;"></i>
+                  <div class="card-title" style="margin:0;">{{ p.label }}</div>
+                </div>
+                <sc-if value="{{ p.comingSoon }}" hint-placeholder-val="{{ false }}">
+                  <span class="tag tag-neutral" style="align-self:flex-start;">Coming soon</span>
+                </sc-if>
+                <sc-if value="{{ p.connected }}" hint-placeholder-val="{{ false }}">
+                  <div style="font-size:13px;display:flex;align-items:center;gap:4px;color:var(--color-accent);"><i class="ph ph-check-circle"></i><span>Connected as {{ p.pageName }}</span></div>
+                </sc-if>
+                <sc-if value="{{ p.hint }}" hint-placeholder-val="{{ false }}">
+                  <div class="text-muted" style="font-size:12px;">{{ p.hint }}</div>
+                </sc-if>
+                <sc-if value="{{ p.actionableNotConnected }}" hint-placeholder-val="{{ false }}">
+                  <button class="btn btn-primary no-print" style="align-self:flex-start;" onClick="{{ p.onConnect }}"><i class="ph {{ p.icon }}"></i>Connect {{ p.label }}</button>
+                </sc-if>
+                <sc-if value="{{ p.actionableConnected }}" hint-placeholder-val="{{ false }}">
+                  <button class="btn btn-secondary no-print" style="align-self:flex-start;" onClick="{{ p.onDisconnect }}" disabled="{{ p.isDisconnecting }}">Disconnect</button>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
       <sc-if value="{{ isClients }}" hint-placeholder-val="{{ false }}">
         <div style="max-width:900px;display:flex;flex-direction:column;gap:var(--space-4);">
           <div class="card elev-sm" style="gap:var(--space-3);max-width:480px;">
@@ -856,6 +893,9 @@ class Component extends DCLogic {
     lightboxOpen: false,
     checkingId: null,
     strategyNotes: {},
+    socialAccounts: [],
+    metaConnectBanner: null,
+    disconnectingPlatform: null,
     newClientName: '',
     newClientUsername: '',
     newClientPassword: '',
@@ -888,6 +928,7 @@ class Component extends DCLogic {
     const v = this.state.view || this.props.defaultView || 'calendar';
     if (!this.isAdmin && v === 'clients') return 'overview';
     if (!this.isAdmin && !this.isEditor && v === 'strategy') return 'overview';
+    if (!this.isAdmin && !this.isEditor && v === 'social') return 'overview';
     return v;
   }
   get calendarMode() { return this.state.calendarMode || this.props.defaultCalendarMode || 'month'; }
@@ -948,11 +989,21 @@ class Component extends DCLogic {
 
   componentDidMount() {
     this.sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const params = new URLSearchParams(window.location.search);
+    const metaConnect = params.get('meta_connect');
+    if (metaConnect) {
+      this.setState({
+        metaConnectBanner: { status: metaConnect, detail: params.get('meta_detail') || '' },
+        view: 'social',
+        adminViewClientId: params.get('clientId') || null,
+      });
+      window.history.replaceState({}, '', window.location.pathname);
+    }
     this.sb.auth.onAuthStateChange((_event, session) => {
       const claimSession = this.decodeClaims(session);
       this.setState({ session: claimSession, appDataLoaded: true });
       if (claimSession) this.loadAllData();
-      else this.setState({ clients: [], posts: [], strategyNotes: {}, adminUsername: '', editorUsername: '' });
+      else this.setState({ clients: [], posts: [], strategyNotes: {}, socialAccounts: [], adminUsername: '', editorUsername: '' });
     });
     this.expireMediaTick();
     this.mediaExpiryInterval = setInterval(this.expireMediaTick, 30 * 60 * 1000);
@@ -976,14 +1027,16 @@ class Component extends DCLogic {
   loadAllData = async () => {
     this.setState({ syncStatus: 'loading' });
     try {
-      const [clientsRes, postsRes, notesRes] = await Promise.all([
+      const [clientsRes, postsRes, notesRes, socialRes] = await Promise.all([
         this.sb.from('clients').select('*'),
         this.sb.from('posts').select('*'),
         (this.isAdmin || this.isEditor) ? this.sb.from('strategy_notes').select('*') : Promise.resolve({ data: [], error: null }),
+        (this.isAdmin || this.isEditor) ? this.sb.from('social_accounts_public').select('*') : Promise.resolve({ data: [], error: null }),
       ]);
       if (clientsRes.error) throw clientsRes.error;
       if (postsRes.error) throw postsRes.error;
       if (notesRes.error) throw notesRes.error;
+      if (socialRes.error) throw socialRes.error;
 
       const { posts: expiredPosts } = expireMedia((postsRes.data || []).map(rowToPost));
       const strategyNotes = {};
@@ -1004,6 +1057,7 @@ class Component extends DCLogic {
         clients: (clientsRes.data || []).map(c => ({ id: c.id, name: c.name, username: clientUsernames[c.id] || '' })),
         posts: expiredPosts,
         strategyNotes,
+        socialAccounts: socialRes.data || [],
         adminUsername,
         editorUsername,
         syncStatus: 'idle',
@@ -1082,6 +1136,33 @@ class Component extends DCLogic {
       };
     });
   };
+  connectPlatform = async (platform) => {
+    if (platform !== 'facebook') return;
+    const clientId = this.effectiveClientId;
+    if (!clientId) return;
+    const { data: { session } } = await this.sb.auth.getSession();
+    const res = await fetch(SUPABASE_URL + '/functions/v1/meta-oauth-start?clientId=' + encodeURIComponent(clientId), {
+      headers: { 'Authorization': 'Bearer ' + session.access_token, 'apikey': SUPABASE_ANON_KEY },
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || !json.url) return;
+    window.location.href = json.url;
+  };
+  disconnectPlatform = async (platform) => {
+    const clientId = this.effectiveClientId;
+    if (!clientId) return;
+    this.setState({ disconnectingPlatform: platform });
+    const { ok } = await this.callAdminFn('meta-disconnect', { clientId, platform });
+    if (ok) {
+      this.setState(s => ({
+        socialAccounts: s.socialAccounts.filter(a => !(a.client_id === clientId && a.platform === platform)),
+        disconnectingPlatform: null,
+      }));
+    } else {
+      this.setState({ disconnectingPlatform: null });
+    }
+  };
+  dismissMetaConnectBanner = () => this.setState({ metaConnectBanner: null });
 
   openNew = (dateISO) => {
     if (!this.isAdmin && !this.isEditor) return;
@@ -1292,6 +1373,7 @@ class Component extends DCLogic {
       { id: 'list', label: 'List', icon: 'ph-list-bullets' },
     ];
     if (isAdmin || isEditor) viewTabDefs.push({ id: 'strategy', label: 'Strategy', icon: 'ph-target' });
+    if (isAdmin || isEditor) viewTabDefs.push({ id: 'social', label: 'Social Accounts', icon: 'ph-share-network' });
     if (isAdmin) viewTabDefs.push({ id: 'clients', label: 'Clients', icon: 'ph-users-three' });
     const viewTabs = viewTabDefs.map(t => ({
       ...t,
@@ -1305,7 +1387,7 @@ class Component extends DCLogic {
         background: view === t.id ? 'var(--color-accent-800)' : 'transparent',
       },
     }));
-    const viewTitleMap = { overview: 'Overview', calendar: 'Calendar', list: 'All Posts', strategy: 'Strategy', clients: 'Clients' };
+    const viewTitleMap = { overview: 'Overview', calendar: 'Calendar', list: 'All Posts', strategy: 'Strategy', social: 'Social Accounts', clients: 'Clients' };
     const viewSubtitle = view === 'clients' ? (clients.length + ' client account(s)') : (isAdmin ? (effectiveClient ? 'Managing ' + effectiveClient.name : 'No client selected') : (effectiveClient ? effectiveClient.name + ' · your account' : 'Your account'));
 
     const platformChips = PLATFORM_ORDER.map(id => {
@@ -1440,6 +1522,28 @@ class Component extends DCLogic {
       onRemove: () => this.removeClient(c.id),
     }));
 
+    const socialPlatformCards = PLATFORM_ORDER.map(id => {
+      const meta = PLATFORM_META[id];
+      const account = this.state.socialAccounts.find(a => a.client_id === effectiveClientId && a.platform === id);
+      const supported = id === 'facebook' || id === 'instagram';
+      const actionable = id === 'facebook';
+      return {
+        id, label: meta.label, icon: meta.icon,
+        connected: !!account,
+        notConnected: !account,
+        comingSoon: !supported,
+        actionable,
+        actionableNotConnected: actionable && !account,
+        actionableConnected: actionable && !!account,
+        pageName: account ? account.page_name : '',
+        hint: (id === 'instagram' && !account) ? 'Connects automatically when you connect Facebook, if the Page has a linked Instagram Business account.' : '',
+        isDisconnecting: this.state.disconnectingPlatform === id,
+        onConnect: actionable ? () => this.connectPlatform(id) : undefined,
+        onDisconnect: (actionable && account) ? () => this.disconnectPlatform(id) : undefined,
+      };
+    });
+    const metaConnectBanner = this.state.metaConnectBanner;
+
     return {
       viewTabs,
       viewTitle: viewTitleMap[view],
@@ -1449,6 +1553,7 @@ class Component extends DCLogic {
       isCalendarWeek: view === 'calendar' && calendarMode === 'week' && !needsClientSetup,
       isList: view === 'list' && !needsClientSetup,
       isStrategy: view === 'strategy' && !needsClientSetup,
+      isSocialAccounts: view === 'social' && !needsClientSetup,
       isClients: view === 'clients',
       needsClientSetup: needsClientSetup && view !== 'clients',
       goToClients: this.goToClients,
@@ -1497,6 +1602,15 @@ class Component extends DCLogic {
       hasClients: clients.length > 0,
       noClients: clients.length === 0,
       clientCards,
+      socialPlatformCards,
+      metaConnectBannerVisible: !!metaConnectBanner,
+      metaConnectBannerIsError: !!metaConnectBanner && metaConnectBanner.status !== 'success',
+      metaConnectBannerText: metaConnectBanner
+        ? (metaConnectBanner.status === 'success'
+            ? 'Connected to ' + metaConnectBanner.detail + '.'
+            : 'Could not connect: ' + (metaConnectBanner.detail || 'unknown error') + '.')
+        : '',
+      dismissMetaConnectBanner: this.dismissMetaConnectBanner,
       modalOpen,
       modalTitle: modal && modal.editingId ? 'Edit post' : 'New post',
       isEditingExisting: !!(modal && modal.editingId),

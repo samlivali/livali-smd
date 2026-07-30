@@ -12,10 +12,14 @@ import {
   verifyState,
 } from "../_shared/meta.ts";
 
-function backToApp(status: string, detail?: string): Response {
+function backToApp(status: string, detail?: string, clientId?: string): Response {
   const u = new URL(APP_RETURN_URL);
   u.searchParams.set("meta_connect", status);
   if (detail) u.searchParams.set("meta_detail", detail);
+  // Lets the frontend restore adminViewClientId to whichever client was
+  // actually being connected, rather than silently falling back to
+  // clients[0] after the redirect.
+  if (clientId) u.searchParams.set("clientId", clientId);
   return Response.redirect(u.toString(), 302);
 }
 
@@ -52,7 +56,7 @@ Deno.serve(async (req) => {
     const shortRes = await fetch(tokenUrl);
     const shortJson = await shortRes.json();
     if (!shortRes.ok || !shortJson.access_token) {
-      return backToApp("error", "code_exchange_failed");
+      return backToApp("error", "code_exchange_failed", clientId);
     }
 
     // 2. Exchange short-lived -> long-lived user access token.
@@ -66,7 +70,7 @@ Deno.serve(async (req) => {
     const longRes = await fetch(longUrl);
     const longJson = await longRes.json();
     if (!longRes.ok || !longJson.access_token) {
-      return backToApp("error", "token_exchange_failed");
+      return backToApp("error", "token_exchange_failed", clientId);
     }
     const userToken = longJson.access_token as string;
 
@@ -89,7 +93,7 @@ Deno.serve(async (req) => {
     }> | undefined;
 
     if (!pagesRes.ok || !pages || pages.length === 0) {
-      return backToApp("error", "no_pages_found");
+      return backToApp("error", "no_pages_found", clientId);
     }
 
     // Pilot simplification (see CLAUDE.md): connect the first Page returned.
@@ -131,11 +135,11 @@ Deno.serve(async (req) => {
       },
     );
     if (!upsertRes.ok) {
-      return backToApp("error", "db_write_failed");
+      return backToApp("error", "db_write_failed", clientId);
     }
 
-    return backToApp("success", page.name);
+    return backToApp("success", page.name, clientId);
   } catch (e) {
-    return backToApp("error", e instanceof Error ? e.message : "unknown");
+    return backToApp("error", e instanceof Error ? e.message : "unknown", clientId);
   }
 });
